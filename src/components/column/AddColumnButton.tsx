@@ -1,14 +1,22 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createColumn } from "@/lib/actions";
+import { createColumn, type CreateColumnState } from "@/lib/actions";
+import type { DndColumn } from "@/types/dnd";
 
-const initial = { error: undefined, success: false };
+const initial: CreateColumnState = {};
 
-export function AddColumnButton({ boardId }: { boardId: string }) {
+interface AddColumnButtonProps {
+  boardId: string;
+  onColumnAdded: (column: DndColumn) => void;
+}
+
+export function AddColumnButton({ boardId, onColumnAdded }: AddColumnButtonProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -19,10 +27,13 @@ export function AddColumnButton({ boardId }: { boardId: string }) {
   }, [open]);
 
   useEffect(() => {
-    if (state.success) {
+    if (state.success && state.column) {
+      onColumnAdded(state.column);  // update BoardClient local state immediately
+      router.refresh();              // sync Next.js RSC cache in background
       formRef.current?.reset();
       setOpen(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.success]);
 
   if (!open) {

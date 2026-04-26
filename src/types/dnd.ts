@@ -22,13 +22,23 @@ export type DndBoardMember = {
   user: { name: string | null; email: string | null };
 };
 
-// Data payloads attached to dnd-kit active/over items
+// ─── Drag data: attached to useSortable's `data` option ──────────────────────
+// Used to identify WHAT is being dragged.
+
 export type CardDragData = {
   type: "card";
   card: DndCard;
 };
 
-export type ColumnDropData = {
+export type ColumnDragData = {
   type: "column";
+  column: DndColumn;
+};
+
+// ─── Drop data: attached to useDroppable's `data` option ─────────────────────
+// Identifies an empty-column drop zone (distinct from a sortable column target).
+
+export type ColumnDropData = {
+  type: "column-drop";
   columnId: string;
 };

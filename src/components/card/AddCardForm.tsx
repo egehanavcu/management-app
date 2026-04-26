@@ -1,20 +1,24 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { createCard } from "@/lib/actions";
+import { createCard, type CreateCardState } from "@/lib/actions";
+import type { DndCard } from "@/types/dnd";
 
-const initial = { error: undefined, success: false };
+const initial: CreateCardState = {};
 
 interface AddCardFormProps {
   columnId: string;
   boardId: string;
   onClose: () => void;
+  onCardAdded: (card: DndCard) => void;
 }
 
-export function AddCardForm({ columnId, boardId, onClose }: AddCardFormProps) {
+export function AddCardForm({ columnId, boardId, onClose, onCardAdded }: AddCardFormProps) {
+  const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, isPending] = useActionState(createCard, initial);
@@ -24,11 +28,14 @@ export function AddCardForm({ columnId, boardId, onClose }: AddCardFormProps) {
   }, []);
 
   useEffect(() => {
-    if (state.success) {
+    if (state.success && state.card) {
+      onCardAdded(state.card);   // update BoardClient local state immediately
+      router.refresh();           // sync Next.js RSC cache in background
       formRef.current?.reset();
       onClose();
     }
-  }, [state.success, onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.success]);
 
   return (
     <div className="rounded-lg bg-white shadow-sm p-2.5 space-y-2">

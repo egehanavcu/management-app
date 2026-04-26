@@ -14,10 +14,16 @@ import {
   type DragOverEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import { Users } from "lucide-react";
-import { Column } from "@/components/column/Column";
+import { SortableColumn } from "@/components/column/SortableColumn";
+import { ColumnOverlay } from "@/components/column/ColumnOverlay";
 import { AddColumnButton } from "@/components/column/AddColumnButton";
 import { CardOverlay } from "@/components/card/CardOverlay";
 import { calculateNewPosition } from "@/lib/position";
@@ -26,6 +32,7 @@ import type {
   DndColumn,
   DndBoardMember,
   CardDragData,
+  ColumnDragData,
   ColumnDropData,
 } from "@/types/dnd";
 import type { Role } from "@/generated/prisma";
@@ -51,8 +58,8 @@ function MemberAvatar({ name, email }: { name: string | null; email: string | nu
   );
 }
 
-/** Returns the column that contains `cardId`, or undefined. */
-function findColumn(cardId: string, cols: DndColumn[]): DndColumn | undefined {
+/** Returns the column containing `cardId`, or undefined. */
+function findCardColumn(cardId: string, cols: DndColumn[]): DndColumn | undefined {
   return cols.find((c) => c.cards.some((card) => card.id === cardId));
 }
 
@@ -65,17 +72,32 @@ export function BoardClient({
 }: BoardClientProps) {
   const [columns, setColumns] = useState<DndColumn[]>(initialColumns);
   const [activeCard, setActiveCard] = useState<DndCard | null>(null);
+  const [activeColumn, setActiveColumn] = useState<DndColumn | null>(null);
   const [syncing, setSyncing] = useState(false);
 
-  // Snapshot taken at drag-start — used to rollback on API failure
+  // Snapshot taken at drag-start — the rollback target on API failure
   const preDragSnapshot = useRef<DndColumn[]>(initialColumns);
 
   const canEdit = userRole === "OWNER" || userRole === "EDITOR";
 
+  // ─── Child callbacks ──────────────────────────────────────────────────────
+
+  const handleCardAdded = useCallback((card: DndCard) => {
+    setColumns((prev) =>
+      prev.map((col) =>
+        col.id === card.columnId ? { ...col, cards: [...col.cards, card] } : col
+      )
+    );
+  }, []);
+
+  const handleColumnAdded = useCallback((column: DndColumn) => {
+    setColumns((prev) => [...prev, column]);
+  }, []);
+
   // ─── Sensors ─────────────────────────────────────────────────────────────
-  // PointerSensor: desktop mouse with 8px hysteresis so click vs drag is clear.
-  // TouchSensor: 200ms long-press for mobile — prevents accidental drags while scrolling.
-  // KeyboardSensor: a11y keyboard navigation.
+  // PointerSensor: 8 px of movement required — prevents misfire on clicks.
+  // TouchSensor:   200 ms long-press — safe on mobile without blocking scroll.
+  // KeyboardSensor: accessibility.
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -87,46 +109,65 @@ export function BoardClient({
 
   const handleDragStart = useCallback(
     ({ active }: DragStartEvent) => {
-      preDragSnapshot.current = columns; // capture for potential rollback
-      const data = active.data.current as CardDragData | undefined;
-      if (data?.type === "card") setActiveCard(data.card);
+      preDragSnapshot.current = columns;
+      const data = active.data.current as CardDragData | ColumnDragData | undefined;
+      if (data?.type === "card") {
+        setActiveCard(data.card);
+        setActiveColumn(null);
+      } else if (data?.type === "column") {
+        setActiveColumn(data.column);
+        setActiveCard(null);
+      }
     },
     [columns]
   );
 
   // ─── Drag over ────────────────────────────────────────────────────────────
-  // Keeps local state in sync with the drag position so columns update live.
 
   const handleDragOver = useCallback(({ active, over }: DragOverEvent) => {
     if (!over || active.id === over.id) return;
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
+    const activeType = (active.data.current as CardDragData | ColumnDragData | undefined)?.type;
+
+    // ── Column reorder ───────────────────────────────────────────────────────
+    if (activeType === "column") {
+      setColumns((prev) => {
+        const oldIdx = prev.findIndex((c) => c.id === active.id);
+        const newIdx = prev.findIndex((c) => c.id === over.id);
+        if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
+        return arrayMove(prev, oldIdx, newIdx);
+      });
+      return;
+    }
+
+    // ── Card move ────────────────────────────────────────────────────────────
+    if (activeType !== "card") return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const overData = over.data.current as CardDragData | ColumnDropData | undefined;
+
+    const targetColId =
+      overData?.type === "column-drop"
+        ? overData.columnId
+        : overData?.type === "card"
+        ? overData.card.columnId
+        : null;
+
+    if (!targetColId) return;
 
     setColumns((prev) => {
-      const sourceCol = findColumn(activeId, prev);
+      const sourceCol = findCardColumn(activeId, prev);
       if (!sourceCol) return prev;
-
-      const overData = over.data.current as CardDragData | ColumnDropData | undefined;
-
-      const targetColId =
-        overData?.type === "column"
-          ? overData.columnId
-          : overData?.type === "card"
-          ? overData.card.columnId
-          : null;
-
-      if (!targetColId) return prev;
 
       const targetCol = prev.find((c) => c.id === targetColId);
       if (!targetCol) return prev;
 
-      // ── Same-column reorder ──────────────────────────────────────────────
+      // Same-column reorder
       if (sourceCol.id === targetColId) {
         const oldIdx = sourceCol.cards.findIndex((c) => c.id === activeId);
         const newIdx = targetCol.cards.findIndex((c) => c.id === overId);
         if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
-
         return prev.map((col) =>
           col.id === targetColId
             ? { ...col, cards: arrayMove(col.cards, oldIdx, newIdx) }
@@ -134,7 +175,7 @@ export function BoardClient({
         );
       }
 
-      // ── Cross-column move ────────────────────────────────────────────────
+      // Cross-column move
       const movedCard = sourceCol.cards.find((c) => c.id === activeId);
       if (!movedCard) return prev;
 
@@ -158,39 +199,65 @@ export function BoardClient({
   }, []);
 
   // ─── Drag end ────────────────────────────────────────────────────────────
-  // At this point, `columns` already reflects all onDragOver mutations,
-  // so we can read the card's final position directly from state.
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
-      setActiveCard(null);
       const snapshot = preDragSnapshot.current;
+      const activeType = (active.data.current as CardDragData | ColumnDragData | undefined)?.type;
+      const activeId = String(active.id);
+
+      setActiveCard(null);
+      setActiveColumn(null);
 
       if (!over) {
         setColumns(snapshot);
         return;
       }
 
-      const activeId = active.id as string;
+      // ── Column drag end ──────────────────────────────────────────────────
+      if (activeType === "column") {
+        const finalIdx = columns.findIndex((c) => c.id === activeId);
+        if (finalIdx === -1) { setColumns(snapshot); return; }
 
-      // Find the card's final column (already updated by onDragOver)
-      const finalCol = findColumn(activeId, columns);
-      if (!finalCol) {
-        setColumns(snapshot);
+        // Fractional position: siblings are all columns except the active one
+        const siblings = columns.filter((c) => c.id !== activeId);
+        const newPosition = calculateNewPosition(siblings, finalIdx);
+
+        setColumns((prev) =>
+          prev.map((col) =>
+            col.id === activeId ? { ...col, position: newPosition } : col
+          )
+        );
+
+        setSyncing(true);
+        fetch(`/api/columns/${activeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: newPosition }),
+        })
+          .then((res) => { if (!res.ok) throw new Error(`${res.status}`); })
+          .catch(() => {
+            setColumns(snapshot);
+            toast.error("Couldn't save column position — changes reverted.");
+          })
+          .finally(() => setSyncing(false));
+
         return;
       }
+
+      // ── Card drag end ────────────────────────────────────────────────────
+      if (activeType !== "card") return;
+
+      const finalCol = findCardColumn(activeId, columns);
+      if (!finalCol) { setColumns(snapshot); return; }
 
       const finalIndex = finalCol.cards.findIndex((c) => c.id === activeId);
-      if (finalIndex === -1) {
-        setColumns(snapshot);
-        return;
-      }
+      if (finalIndex === -1) { setColumns(snapshot); return; }
 
-      // Fractional indexing: siblings = cards in finalCol excluding active card
+      // Fractional position: siblings = other cards in the destination column
       const siblings = finalCol.cards.filter((c) => c.id !== activeId);
       const newPosition = calculateNewPosition(siblings, finalIndex);
 
-      // Persist the computed position into state
       setColumns((prev) =>
         prev.map((col) => ({
           ...col,
@@ -202,24 +269,16 @@ export function BoardClient({
         }))
       );
 
-      // Background persistence — PATCH /api/cards/[id]/move
       setSyncing(true);
       fetch(`/api/cards/${activeId}/move`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          newColumnId: finalCol.id,
-          newPosition,
-        }),
+        body: JSON.stringify({ newColumnId: finalCol.id, newPosition }),
       })
-        .then((res) => {
-          if (!res.ok) throw new Error(`${res.status}`);
-        })
+        .then((res) => { if (!res.ok) throw new Error(`${res.status}`); })
         .catch(() => {
-          setColumns(snapshot); // rollback optimistic update
-          toast.error("Couldn't save card position — your change has been reverted.", {
-            duration: 4000,
-          });
+          setColumns(snapshot);
+          toast.error("Couldn't save card position — changes reverted.");
         })
         .finally(() => setSyncing(false));
     },
@@ -228,23 +287,24 @@ export function BoardClient({
 
   const handleDragCancel = useCallback(() => {
     setActiveCard(null);
+    setActiveColumn(null);
     setColumns(preDragSnapshot.current);
   }, []);
 
   // ─── Render ───────────────────────────────────────────────────────────────
+
+  const columnIds = columns.map((c) => c.id);
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800">
       {/* Board header */}
       <div className="flex items-center gap-4 px-5 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
         <h1 className="text-lg font-bold text-white truncate">{boardTitle}</h1>
-
         {syncing && (
           <span className="ml-1 text-[11px] font-medium text-white/60 animate-pulse">
             Syncing…
           </span>
         )}
-
         <div className="flex items-center ml-auto flex-shrink-0 gap-3">
           <div className="flex items-center">
             {members.map((m) => (
@@ -261,7 +321,7 @@ export function BoardClient({
         </div>
       </div>
 
-      {/* DnD context wrapping the column layout */}
+      {/* DnD context */}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -272,21 +332,28 @@ export function BoardClient({
       >
         <div className="flex-1 overflow-x-auto overflow-y-hidden">
           <div className="flex gap-3 p-4 h-full items-start min-w-max">
-            {columns.map((column) => (
-              <Column
-                key={column.id}
-                column={column}
-                boardId={boardId}
-                canEdit={canEdit}
-              />
-            ))}
-            {canEdit && <AddColumnButton boardId={boardId} />}
+            {/* Horizontal SortableContext owns the column order */}
+            <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+              {columns.map((column) => (
+                <SortableColumn
+                  key={column.id}
+                  column={column}
+                  boardId={boardId}
+                  canEdit={canEdit}
+                  onCardAdded={handleCardAdded}
+                />
+              ))}
+            </SortableContext>
+            {canEdit && (
+              <AddColumnButton boardId={boardId} onColumnAdded={handleColumnAdded} />
+            )}
           </div>
         </div>
 
-        {/* Floating card shown while dragging — rotate + scale = "lifted" feel */}
+        {/* DragOverlay — shows the "lifted" preview for whichever item is active */}
         <DragOverlay dropAnimation={{ duration: 180, easing: "ease" }}>
-          {activeCard ? <CardOverlay card={activeCard} /> : null}
+          {activeCard && <CardOverlay card={activeCard} />}
+          {activeColumn && <ColumnOverlay column={activeColumn} />}
         </DragOverlay>
       </DndContext>
     </div>
