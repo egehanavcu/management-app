@@ -2,13 +2,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import { BoardClient } from "@/components/board/BoardClient";
-import type { DndColumn, DndBoardMember } from "@/types/dnd";
+import type { DndColumn, DndBoardMember, BoardLabel } from "@/types/dnd";
 
-export default async function BoardPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
@@ -22,10 +18,8 @@ export default async function BoardPage({
   const board = await prisma.board.findUnique({
     where: { id },
     include: {
-      members: {
-        include: { user: { omit: { password: true } } },
-        take: 8,
-      },
+      labels: { orderBy: { createdAt: "asc" } },
+      members: { include: { user: { omit: { password: true } } } },
       columns: {
         orderBy: { position: "asc" },
         include: {
@@ -40,10 +34,8 @@ export default async function BoardPage({
       },
     },
   });
-
   if (!board) notFound();
 
-  // Serialize to plain objects for the client component
   const initialColumns: DndColumn[] = board.columns.map((col) => ({
     id: col.id,
     title: col.title,
@@ -52,30 +44,30 @@ export default async function BoardPage({
     cards: col.cards.map((card) => ({
       id: card.id,
       title: card.title,
+      description: card.description,
       position: card.position,
       columnId: card.columnId,
       dueDate: card.dueDate,
       assignedUser: card.assignedUser
-        ? {
-            id: card.assignedUser.id,
-            name: card.assignedUser.name,
-            email: card.assignedUser.email,
-          }
+        ? { id: card.assignedUser.id, name: card.assignedUser.name, email: card.assignedUser.email }
         : null,
       labels: card.labels.map((cl) => ({
-        label: {
-          id: cl.label.id,
-          name: cl.label.name,
-          color: cl.label.color,
-        },
+        label: { id: cl.label.id, name: cl.label.name, color: cl.label.color },
       })),
     })),
   }));
 
   const members: DndBoardMember[] = board.members.map((m) => ({
     id: m.id,
+    userId: m.user.id,
     role: m.role,
     user: { name: m.user.name, email: m.user.email },
+  }));
+
+  const labels: BoardLabel[] = board.labels.map((l) => ({
+    id: l.id,
+    name: l.name,
+    color: l.color,
   }));
 
   return (
@@ -83,6 +75,7 @@ export default async function BoardPage({
       boardId={board.id}
       boardTitle={board.title}
       members={members}
+      labels={labels}
       initialColumns={initialColumns}
       userRole={membership.role}
     />

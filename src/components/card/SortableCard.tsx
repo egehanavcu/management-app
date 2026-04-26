@@ -7,32 +7,27 @@ import type { DndCard, CardDragData } from "@/types/dnd";
 
 interface SortableCardProps {
   card: DndCard;
+  canDrag: boolean;
+  onCardClick: (cardId: string) => void;
 }
 
-export function SortableCard({ card }: SortableCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+export function SortableCard({ card, canDrag, onCardClick }: SortableCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
     data: { type: "card", card } satisfies CardDragData,
+    disabled: !canDrag,
   });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.35 : 1,
-    // Prevent layout shift of sibling cards when dragging
     zIndex: isDragging ? 10 : undefined,
   };
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <CardItem card={card} />
+      <CardItem card={card} onClick={() => onCardClick(card.id)} />
     </div>
   );
 }

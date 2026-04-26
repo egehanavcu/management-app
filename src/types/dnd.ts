@@ -1,6 +1,7 @@
 export type DndCard = {
   id: string;
   title: string;
+  description: string | null;
   position: number;
   columnId: string;
   dueDate: Date | null;
@@ -17,28 +18,22 @@ export type DndColumn = {
 };
 
 export type DndBoardMember = {
-  id: string;
+  id: string;       // membership ID
+  userId: string;   // user ID — needed for role/remove API calls
   role: "OWNER" | "EDITOR" | "VIEWER";
   user: { name: string | null; email: string | null };
 };
 
+export type BoardLabel = {
+  id: string;
+  name: string;
+  color: string;
+};
+
 // ─── Drag data: attached to useSortable's `data` option ──────────────────────
-// Used to identify WHAT is being dragged.
-
-export type CardDragData = {
-  type: "card";
-  card: DndCard;
-};
-
-export type ColumnDragData = {
-  type: "column";
-  column: DndColumn;
-};
+export type CardDragData   = { type: "card";   card: DndCard };
+export type ColumnDragData = { type: "column"; column: DndColumn };
 
 // ─── Drop data: attached to useDroppable's `data` option ─────────────────────
-// Identifies an empty-column drop zone (distinct from a sortable column target).
-
-export type ColumnDropData = {
-  type: "column-drop";
-  columnId: string;
-};
+// "column-drop" is the empty-column droppable zone (distinct from a draggable column).
+export type ColumnDropData = { type: "column-drop"; columnId: string };

@@ -10,39 +10,30 @@ interface SortableColumnProps {
   boardId: string;
   canEdit: boolean;
   onCardAdded: (card: DndCard) => void;
+  onCardClick: (cardId: string) => void;
 }
 
-export function SortableColumn({ column, boardId, canEdit, onCardAdded }: SortableColumnProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+export function SortableColumn({ column, boardId, canEdit, onCardAdded, onCardClick }: SortableColumnProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: column.id,
     data: { type: "column", column } satisfies ColumnDragData,
+    disabled: !canEdit,
   });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    // Keep the ghost slot visible at reduced opacity while dragging;
-    // the DragOverlay shows the "lifted" version.
     zIndex: isDragging ? 50 : undefined,
   };
 
   return (
-    // setNodeRef + attributes on the outer wrapper; listeners go to the
-    // header only (passed as dragHandleListeners) so clicking cards doesn't
-    // start a column drag.
     <div ref={setNodeRef} style={style} {...attributes}>
       <Column
         column={column}
         boardId={boardId}
         canEdit={canEdit}
         onCardAdded={onCardAdded}
+        onCardClick={onCardClick}
         dragHandleListeners={listeners as React.HTMLAttributes<HTMLDivElement>}
         isDragging={isDragging}
       />
