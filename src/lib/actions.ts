@@ -13,6 +13,33 @@ export type CreateColumnState = { error?: string; success?: boolean; column?: Dn
 
 // ─── Board ────────────────────────────────────────────────────────────────────
 
+export async function updateBoardTitle(
+  boardId: string,
+  title: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  const trimmed = title.trim();
+  if (!trimmed) return { success: false, error: "Board title cannot be empty" };
+
+  const membership = await prisma.boardMember.findUnique({
+    where: { boardId_userId: { boardId, userId: session.user.id } },
+  });
+  if (!membership || !hasMinRole(membership.role, "EDITOR"))
+    return { success: false, error: "Only editors and owners can rename boards" };
+
+  try {
+    await prisma.board.update({ where: { id: boardId }, data: { title: trimmed } });
+    // Invalidate the board page AND the boards list (sidebar) so both reflect the new name.
+    revalidatePath(`/boards/${boardId}`);
+    revalidatePath("/boards");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to rename board. Please try again." };
+  }
+}
+
 const DEFAULT_LABELS = [
   { name: "Bug",           color: "red"    },
   { name: "Feature",       color: "blue"   },

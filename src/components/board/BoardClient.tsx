@@ -16,6 +16,7 @@ import { CardOverlay }           from "@/components/card/CardOverlay";
 import { CardModal }             from "@/components/card/CardModal";
 import { MembersDialog }         from "./MembersDialog";
 import { BoardActivityPanel }    from "./BoardActivityPanel";
+import { EditableBoardTitle }    from "./EditableBoardTitle";
 import { Button }                from "@/components/ui/button";
 import { calculateNewPosition }  from "@/lib/position";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
@@ -215,8 +216,8 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
     <div className="flex flex-col h-full bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800">
       {/* Board header */}
       <div className="flex items-center gap-3 px-5 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-        <h1 className="text-lg font-bold text-white truncate">{boardTitle}</h1>
-        {syncing && <span className="ml-1 text-[11px] text-white/60 animate-pulse">Syncing…</span>}
+        <EditableBoardTitle boardId={boardId} initialTitle={boardTitle} canEdit={canEdit} />
+        {syncing && <span className="ml-1 text-[11px] text-white/60 animate-pulse flex-shrink-0">Syncing…</span>}
 
         <div className="flex items-center gap-2 ml-auto flex-shrink-0">
           {/* Member avatars */}
