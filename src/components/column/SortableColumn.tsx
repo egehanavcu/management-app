@@ -9,11 +9,17 @@ interface SortableColumnProps {
   column: DndColumn;
   boardId: string;
   canEdit: boolean;
-  onCardAdded: (card: DndCard) => void;
-  onCardClick: (cardId: string) => void;
+  onCardAdded:     (card: DndCard) => void;
+  onCardClick:     (cardId: string) => void;
+  onColumnRenamed: (columnId: string, newTitle: string) => Promise<boolean>;
+  onColumnDeleted: (column: DndColumn) => Promise<boolean>;
 }
 
-export function SortableColumn({ column, boardId, canEdit, onCardAdded, onCardClick }: SortableColumnProps) {
+export function SortableColumn({
+  column, boardId, canEdit,
+  onCardAdded, onCardClick,
+  onColumnRenamed, onColumnDeleted,
+}: SortableColumnProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: column.id,
     data: { type: "column", column } satisfies ColumnDragData,
@@ -34,6 +40,8 @@ export function SortableColumn({ column, boardId, canEdit, onCardAdded, onCardCl
         canEdit={canEdit}
         onCardAdded={onCardAdded}
         onCardClick={onCardClick}
+        onColumnRenamed={onColumnRenamed}
+        onColumnDeleted={onColumnDeleted}
         dragHandleListeners={listeners as React.HTMLAttributes<HTMLDivElement>}
         isDragging={isDragging}
       />

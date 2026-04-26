@@ -19,6 +19,7 @@ import { BoardActivityPanel }    from "./BoardActivityPanel";
 import { EditableBoardTitle }    from "./EditableBoardTitle";
 import { Button }                from "@/components/ui/button";
 import { calculateNewPosition }  from "@/lib/position";
+import { renameColumn, deleteColumn } from "@/lib/actions";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
 import type { Role } from "@/generated/prisma";
 
@@ -85,6 +86,32 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
 
   const handleCardClick = useCallback((cardId: string) => {
     setSelectedCardId(cardId);
+  }, []);
+
+  // Optimistic rename: update columns state immediately, rollback on failure.
+  const handleColumnRenamed = useCallback(async (columnId: string, newTitle: string): Promise<boolean> => {
+    const prevTitle = columns.find((c) => c.id === columnId)?.title ?? "";
+    setColumns((prev) => prev.map((c) => c.id === columnId ? { ...c, title: newTitle } : c));
+
+    const result = await renameColumn(columnId, newTitle);
+    if (!result.success) {
+      setColumns((prev) => prev.map((c) => c.id === columnId ? { ...c, title: prevTitle } : c));
+      toast.error(result.error ?? "Failed to rename column");
+      return false;
+    }
+    return true;
+  }, [columns]);
+
+  // Non-optimistic delete: wait for server confirmation before removing from state.
+  // The Column component shows a "Deleting…" overlay while in flight.
+  const handleColumnDeleted = useCallback(async (column: DndColumn): Promise<boolean> => {
+    const result = await deleteColumn(column.id);
+    if (!result.success) {
+      toast.error(result.error ?? "Failed to delete column");
+      return false;
+    }
+    setColumns((prev) => prev.filter((c) => c.id !== column.id));
+    return true;
   }, []);
 
   // ─── Derive selected card ─────────────────────────────────────────────────
@@ -271,6 +298,8 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
                     canEdit={canEdit}
                     onCardAdded={handleCardAdded}
                     onCardClick={handleCardClick}
+                    onColumnRenamed={handleColumnRenamed}
+                    onColumnDeleted={handleColumnDeleted}
                   />
                 ))}
               </SortableContext>

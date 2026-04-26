@@ -89,6 +89,59 @@ export async function deleteBoardAction(boardId: string): Promise<ActionState> {
 
 // ─── Column ───────────────────────────────────────────────────────────────────
 
+export async function renameColumn(
+  columnId: string,
+  title: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  const trimmed = title.trim();
+  if (!trimmed) return { success: false, error: "Column title cannot be empty" };
+
+  const column = await prisma.column.findUnique({ where: { id: columnId } });
+  if (!column) return { success: false, error: "Column not found" };
+
+  const membership = await prisma.boardMember.findUnique({
+    where: { boardId_userId: { boardId: column.boardId, userId: session.user.id } },
+  });
+  if (!membership || !hasMinRole(membership.role, "EDITOR"))
+    return { success: false, error: "Only editors and owners can rename columns" };
+
+  try {
+    await prisma.column.update({ where: { id: columnId }, data: { title: trimmed } });
+    revalidatePath(`/boards/${column.boardId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to rename column. Please try again." };
+  }
+}
+
+export async function deleteColumn(
+  columnId: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  const column = await prisma.column.findUnique({ where: { id: columnId } });
+  if (!column) return { success: false, error: "Column not found" };
+
+  const membership = await prisma.boardMember.findUnique({
+    where: { boardId_userId: { boardId: column.boardId, userId: session.user.id } },
+  });
+  if (!membership || !hasMinRole(membership.role, "EDITOR"))
+    return { success: false, error: "Only editors and owners can delete columns" };
+
+  try {
+    // Cascade deletes all cards (and their activities) via Prisma schema relations.
+    await prisma.column.delete({ where: { id: columnId } });
+    revalidatePath(`/boards/${column.boardId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to delete column. Please try again." };
+  }
+}
+
 export async function createColumn(
   _prev: CreateColumnState,
   formData: FormData
