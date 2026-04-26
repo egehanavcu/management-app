@@ -1,9 +1,4 @@
-import type { Card, User, CardLabel, Label } from "@/generated/prisma";
-
-type CardWithRelations = Card & {
-  assignedUser: Omit<User, "password"> | null;
-  labels: (CardLabel & { label: Label })[];
-};
+import type { DndCard } from "@/types/dnd";
 
 const LABEL_COLORS: Record<string, string> = {
   red: "bg-red-400",
@@ -20,7 +15,7 @@ function labelColor(color: string) {
   return LABEL_COLORS[color.toLowerCase()] ?? "bg-slate-400";
 }
 
-export function CardItem({ card }: { card: CardWithRelations }) {
+export function CardItem({ card }: { card: DndCard }) {
   const hasLabels = card.labels.length > 0;
   const hasAssignee = card.assignedUser !== null;
   const hasDueDate = card.dueDate !== null;
@@ -34,12 +29,11 @@ export function CardItem({ card }: { card: CardWithRelations }) {
         .toUpperCase()
     : "";
 
-  const isOverdue =
-    hasDueDate && new Date(card.dueDate!) < new Date() && !card.updatedAt;
+  const isOverdue = hasDueDate && new Date(card.dueDate!) < new Date();
 
   return (
-    <div className="bg-white rounded-lg shadow-sm px-3 py-2.5 cursor-pointer hover:shadow-md transition-shadow duration-150 border border-transparent hover:border-primary/20 group">
-      {/* Labels row */}
+    <div className="bg-white rounded-lg shadow-sm px-3 py-2.5 border border-transparent hover:border-primary/20 hover:shadow-md transition-all duration-150 select-none">
+      {/* Label colour strips */}
       {hasLabels && (
         <div className="flex flex-wrap gap-1 mb-2">
           {card.labels.map(({ label }) => (
@@ -55,15 +49,13 @@ export function CardItem({ card }: { card: CardWithRelations }) {
       {/* Title */}
       <p className="text-sm text-slate-800 leading-snug font-medium">{card.title}</p>
 
-      {/* Footer: due date + assignee */}
+      {/* Footer */}
       {(hasDueDate || hasAssignee) && (
         <div className="flex items-center justify-between mt-2.5 gap-2">
           {hasDueDate ? (
             <span
               className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${
-                isOverdue
-                  ? "bg-red-100 text-red-600"
-                  : "bg-slate-100 text-slate-500"
+                isOverdue ? "bg-red-100 text-red-600" : "bg-slate-100 text-slate-500"
               }`}
             >
               {new Date(card.dueDate!).toLocaleDateString("en-US", {
