@@ -26,15 +26,23 @@ export function AddColumnButton({ boardId, onColumnAdded }: AddColumnButtonProps
     if (open) inputRef.current?.focus();
   }, [open]);
 
+  // Depend on the returned column's ID, not state.success.
+  // state.success stays `true` across subsequent submissions so the effect
+  // would never re-fire for the second, third, etc. column.
+  // A new unique ID from the DB is the correct signal that a new column arrived.
+  const createdColumnId = state.column?.id;
+
   useEffect(() => {
     if (state.success && state.column) {
-      onColumnAdded(state.column);  // update BoardClient local state immediately
-      router.refresh();              // sync Next.js RSC cache in background
+      onColumnAdded(state.column);
+      router.refresh();
       formRef.current?.reset();
-      setOpen(false);
+      // Keep the form open so the user can immediately add another column.
+      // Focus the input again for a fast multi-column creation flow.
+      inputRef.current?.focus();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.success]);
+  }, [createdColumnId]);
 
   if (!open) {
     return (
