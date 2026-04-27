@@ -347,12 +347,17 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
 
     if (!over) { setColumns(snapshot); return; }
 
+    // ── Column reorder ───────────────────────────────────────────────────────
     if (activeType === "column") {
-      const cols = latestColumnsRef.current;
-      const idx = cols.findIndex((c) => c.id === activeId);
-      if (idx === -1) { setColumns(snapshot); return; }
+      const cols   = latestColumnsRef.current;
+      const newIdx = cols.findIndex((c) => c.id === activeId);
+      const oldIdx = snapshot.findIndex((c) => c.id === activeId);
+
+      // No-op: dropped on itself or back to the same position
+      if (newIdx === -1 || newIdx === oldIdx) { setColumns(snapshot); return; }
+
       const siblings    = cols.filter((c) => c.id !== activeId);
-      const newPosition = calculateNewPosition(siblings, idx);
+      const newPosition = calculateNewPosition(siblings, newIdx);
       setColumns((prev) => prev.map((c) => c.id === activeId ? { ...c, position: newPosition } : c));
       setSyncing(true);
       fetch(`/api/columns/${activeId}`, {
@@ -371,19 +376,19 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
     const latestCols = latestColumnsRef.current;
 
     // Is the drop target a column container (empty column) or a card?
-    // Checking over.id against known column IDs is more reliable than over.data.current.
     const isColumnDrop = latestCols.some((c) => c.id === overId);
 
     if (isColumnDrop) {
-      // ── Empty column drop ────────────────────────────────────────────────────
+      // ── Empty column drop ──────────────────────────────────────────────────
       const targetColumnId = overId;
-      const newPosition    = 1024.0;
-
       const sourceCol = findCardColumn(activeId, latestCols);
       if (!sourceCol) { setColumns(snapshot); return; }
-      const movedCard = sourceCol.cards.find((c) => c.id === activeId)!;
 
-      console.log("Moving card:", activeId, "to column:", targetColumnId, "at pos:", newPosition);
+      // No-op: dropped back onto its own (now-empty) column
+      if (sourceCol.id === targetColumnId) { setColumns(snapshot); return; }
+
+      const newPosition = 1024.0;
+      const movedCard   = sourceCol.cards.find((c) => c.id === activeId)!;
 
       setColumns(latestCols.map((col) => {
         const withoutCard = col.cards.filter((c) => c.id !== activeId);
@@ -404,17 +409,23 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       return;
     }
 
-    // ── Card drop (same or cross column) ────────────────────────────────────────
+    // ── Card drop (same or cross column) ──────────────────────────────────────
     // handleDragOver has already reordered the cards in latestCols.
-    // Find the card's current position in the reordered array and compute the fraction.
     const finalCol = findCardColumn(activeId, latestCols);
     if (!finalCol) { setColumns(snapshot); return; }
-    const finalIdx    = finalCol.cards.findIndex((c) => c.id === activeId);
+    const finalIdx = finalCol.cards.findIndex((c) => c.id === activeId);
     if (finalIdx === -1) { setColumns(snapshot); return; }
+
+    // No-op: card is in the same column at the same index as before the drag
+    const snapCol  = findCardColumn(activeId, snapshot);
+    const snapIdx  = snapCol?.cards.findIndex((c) => c.id === activeId) ?? -1;
+    if (finalCol.id === snapCol?.id && finalIdx === snapIdx) {
+      setColumns(snapshot);
+      return;
+    }
+
     const siblings    = finalCol.cards.filter((c) => c.id !== activeId);
     const newPosition = calculateNewPosition(siblings, finalIdx);
-
-    console.log("Moving card:", activeId, "to column:", finalCol.id, "at pos:", newPosition);
 
     setColumns((prev) => prev.map((col) => ({
       ...col,
