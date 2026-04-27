@@ -29,7 +29,7 @@ import {
   AlertDialogMedia,
 } from "@/components/ui/alert-dialog";
 import { calculateNewPosition }       from "@/lib/position";
-import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription, toggleCardLabel, createLabel, toggleCardAssignee } from "@/lib/actions";
+import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription, toggleCardLabel, createLabel, toggleCardAssignee, deleteCard } from "@/lib/actions";
 import { useMobileSidebar }           from "./MobileSidebarProvider";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
 import type { Role } from "@/generated/prisma";
@@ -89,7 +89,8 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   // Current session user ID — find from members list
   // (the current user IS in the members list, we can identify by role match; use a safer approach)
   // We'll expose it through the page. For now derive from the OWNER member if isOwner, else rely on API.
-  const currentUserId = members.find((m) => m.role === userRole)?.userId ?? "";
+  const currentUserId   = members.find((m) => m.role === userRole)?.userId ?? "";
+  const currentUserInfo = members.find((m) => m.userId === currentUserId)?.user ?? { name: null, email: null };
 
   // ─── Child callbacks ──────────────────────────────────────────────────────
   const handleCardAdded = useCallback((card: DndCard) => {
@@ -108,6 +109,22 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       }))
     );
   }, []);
+
+  const handleCardDeleted = useCallback(async () => {
+    const cardId = selectedCardId;
+    if (!cardId) return;
+    setSyncing(true);
+    const result = await deleteCard(cardId, boardId);
+    setSyncing(false);
+    if (!result.success) {
+      toast.error(result.error ?? "Failed to delete card");
+      return;
+    }
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => c.id !== cardId) }))
+    );
+    setSelectedCardId(null);
+  }, [selectedCardId, boardId]);
 
   const handleCardClick = useCallback((cardId: string) => {
     setSelectedCardId(cardId);
@@ -591,6 +608,8 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
           canEdit={canEdit}
           onClose={() => setSelectedCardId(null)}
           onCardUpdated={handleCardUpdated}
+          currentUser={currentUserInfo}
+          onCardDeleted={handleCardDeleted}
           onLabelToggled={handleLabelToggled}
           onLabelCreated={handleLabelCreated}
           onAssigneeToggled={handleAssigneeToggled}

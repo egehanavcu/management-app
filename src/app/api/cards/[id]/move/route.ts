@@ -41,6 +41,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     await tx.activity.create({
       data: {
         action: "MOVED",
+        boardId: card.column.boardId,
         cardId: id,
         userId: session.user.id,
         fromColumnId,

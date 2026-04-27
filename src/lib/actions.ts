@@ -238,9 +238,15 @@ export async function createCard(
   if (!membership || !hasMinRole(membership.role, "EDITOR"))
     return { error: "You don't have permission to add cards" };
   try {
-    const last = await prisma.card.findFirst({ where: { columnId }, orderBy: { position: "desc" } });
-    const card = await prisma.card.create({
-      data: { title, columnId, position: last ? last.position + 1 : 1 },
+    const card = await prisma.$transaction(async (tx) => {
+      const last = await tx.card.findFirst({ where: { columnId }, orderBy: { position: "desc" } });
+      const created = await tx.card.create({
+        data: { title, columnId, position: last ? last.position + 1 : 1 },
+      });
+      await tx.activity.create({
+        data: { action: "CREATED", boardId, cardId: created.id, userId: session.user.id },
+      });
+      return created;
     });
     revalidatePath(`/boards/${boardId}`);
     return {
@@ -269,20 +275,48 @@ export async function updateCard(
   });
   if (!membership || !hasMinRole(membership.role, "EDITOR"))
     return { success: false, error: "Forbidden" };
+  const titleChanged = data.title !== undefined && data.title.trim() !== existing.title;
+  const descChanged  = data.description !== undefined &&
+    (data.description ?? "") !== (existing.description ?? "");
   try {
-    const updated = await prisma.card.update({
-      where: { id: cardId },
-      data: {
-        title: data.title,
-        description: data.description,
-        dueDate: data.dueDate !== undefined
-          ? (data.dueDate ? new Date(data.dueDate) : null)
-          : undefined,
-      },
-      include: {
-        assignees: { include: { user: { omit: { password: true } } } },
-        labels: { include: { label: true } },
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const card = await tx.card.update({
+        where: { id: cardId },
+        data: {
+          title: data.title,
+          description: data.description,
+          dueDate: data.dueDate !== undefined
+            ? (data.dueDate ? new Date(data.dueDate) : null)
+            : undefined,
+        },
+        include: {
+          assignees: { include: { user: { omit: { password: true } } } },
+          labels: { include: { label: true } },
+        },
+      });
+      if (titleChanged) {
+        await tx.activity.create({
+          data: {
+            action: "UPDATED",
+            boardId: existing.column.boardId,
+            cardId,
+            userId: session.user.id,
+            metadata: JSON.stringify({ oldTitle: existing.title, newTitle: data.title!.trim() }),
+          },
+        });
+      }
+      if (descChanged) {
+        await tx.activity.create({
+          data: {
+            action: "UPDATED",
+            boardId: existing.column.boardId,
+            cardId,
+            userId: session.user.id,
+            metadata: JSON.stringify({ type: "description" }),
+          },
+        });
+      }
+      return card;
     });
     revalidatePath(`/boards/${existing.column.boardId}`);
     return {
@@ -328,6 +362,7 @@ export async function toggleCardAssignee(
       prisma.activity.create({
         data: {
           action: add ? "ASSIGNED" : "UNASSIGNED",
+          boardId,
           cardId,
           userId: session.user.id,
           targetUserId,
@@ -363,6 +398,39 @@ export async function toggleCardLabel(
     }
     return { success: true };
   } catch { return { success: false, error: "Failed to update label" }; }
+}
+
+export async function deleteCard(
+  cardId: string,
+  boardId: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+  const card = await prisma.card.findUnique({ where: { id: cardId }, include: { column: true } });
+  if (!card) return { success: false, error: "Card not found" };
+  const membership = await prisma.boardMember.findUnique({
+    where: { boardId_userId: { boardId: card.column.boardId, userId: session.user.id } },
+  });
+  if (!membership || !hasMinRole(membership.role, "EDITOR"))
+    return { success: false, error: "Forbidden" };
+  try {
+    // Log DELETED first — after card.delete the activity's cardId becomes NULL (SetNull),
+    // but boardId + metadata preserve the context for the global activity feed.
+    await prisma.$transaction([
+      prisma.activity.create({
+        data: {
+          action: "DELETED",
+          boardId: card.column.boardId,
+          cardId,
+          userId: session.user.id,
+          metadata: JSON.stringify({ cardTitle: card.title }),
+        },
+      }),
+      prisma.card.delete({ where: { id: cardId } }),
+    ]);
+    revalidatePath(`/boards/${boardId}`);
+    return { success: true };
+  } catch { return { success: false, error: "Failed to delete card" }; }
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────

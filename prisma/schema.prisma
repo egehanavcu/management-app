@@ -89,9 +89,10 @@ model Board {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members BoardMember[]
-  columns Column[]
-  labels  Label[]
+  members    BoardMember[]
+  columns    Column[]
+  labels     Label[]
+  activities Activity[]
 }
 
 model BoardMember {
@@ -156,14 +157,17 @@ model CardAssignee {
 model Activity {
   id           String     @id @default(cuid())
   action       ActionType
-  cardId       String
+  boardId      String?
+  cardId       String?
   userId       String
   fromColumnId String?
   toColumnId   String?
   targetUserId String?
+  metadata     String?    @db.Text
   createdAt    DateTime   @default(now())
 
-  card       Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  board      Board?  @relation(fields: [boardId], references: [id], onDelete: SetNull)
+  card       Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
   user       User    @relation(fields: [userId], references: [id])
   fromColumn Column? @relation("FromColumn", fields: [fromColumnId], references: [id], onDelete: SetNull)
   toColumn   Column? @relation("ToColumn", fields: [toColumnId], references: [id], onDelete: SetNull)

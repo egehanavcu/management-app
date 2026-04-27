@@ -13,7 +13,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!membership) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const activities = await prisma.activity.findMany({
-    where: { card: { column: { boardId } } },
+    where: {
+      OR: [
+        { boardId },                           // new activities (CREATED, UPDATED, DELETED, etc.)
+        { card: { column: { boardId } } },     // legacy activities without boardId
+      ],
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
@@ -21,6 +26,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       card:       { select: { title: true } },
       fromColumn: { select: { title: true } },
       toColumn:   { select: { title: true } },
+      targetUser: { select: { name: true, email: true } },
     },
   });
 

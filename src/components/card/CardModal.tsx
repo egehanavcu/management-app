@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Calendar, AlignLeft, Tag, Users, Clock, Loader2, Check, Plus } from "lucide-react";
+import { Calendar, AlignLeft, Tag, Users, Clock, Loader2, Check, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +19,7 @@ type Activity = {
   id: string;
   action: string;
   createdAt: string;
+  metadata:   string | null;
   user:       { name: string | null; email: string | null };
   fromColumn: { title: string } | null;
   toColumn:   { title: string } | null;
@@ -29,19 +30,21 @@ interface CardModalProps {
   card: DndCard;
   columnTitle: string;
   boardId: string;
+  currentUser: { name: string | null; email: string | null };
   members: DndBoardMember[];
   labels: BoardLabel[];
   canEdit: boolean;
   onClose: () => void;
   onCardUpdated: (card: DndCard) => void;
+  onCardDeleted: () => Promise<void>;
   onLabelToggled: (labelId: string, add: boolean) => Promise<boolean>;
   onLabelCreated: (name: string, color: string) => Promise<boolean>;
   onAssigneeToggled: (userId: string, add: boolean) => Promise<boolean>;
 }
 
 export function CardModal({
-  card, columnTitle, members, labels, canEdit,
-  onClose, onCardUpdated, onLabelToggled, onLabelCreated, onAssigneeToggled,
+  card, columnTitle, currentUser, members, labels, canEdit,
+  onClose, onCardUpdated, onCardDeleted, onLabelToggled, onLabelCreated, onAssigneeToggled,
 }: CardModalProps) {
   const [title,           setTitle]          = useState(card.title);
   const [description,     setDescription]    = useState(card.description ?? "");
@@ -62,6 +65,7 @@ export function CardModal({
   const [activities, setActivities]  = useState<Activity[]>([]);
   const [actLoading, setActLoading]  = useState(true);
   const [saving,     setSaving]      = useState(false);
+  const [deleting,   setDeleting]    = useState(false);
 
   useEffect(() => {
     setActLoading(true);
@@ -85,6 +89,38 @@ export function CardModal({
     },
     [card.id, onCardUpdated]
   );
+
+  // Dedicated handler for description blur — guards against no-op saves and
+  // prepends an optimistic activity so the user sees instant confirmation.
+  const handleDescriptionSave = useCallback(async () => {
+    const next = description.trim() || null;
+    const prev = (card.description ?? "").trim() || null;
+    if (next === prev) return;  // nothing changed, skip entirely
+
+    const optimisticId  = `opt-${Date.now()}`;
+    const optimisticAct: Activity = {
+      id: optimisticId,
+      action: "UPDATED",
+      createdAt: new Date().toISOString(),
+      metadata: JSON.stringify({ type: "description" }),
+      user: currentUser,
+      fromColumn: null,
+      toColumn:   null,
+      targetUser: null,
+    };
+    setActivities((prev) => [optimisticAct, ...prev]);
+
+    setSaving(true);
+    const result = await updateCard(card.id, { description: next });
+    setSaving(false);
+
+    if (result.success && result.card) {
+      onCardUpdated(result.card);
+    } else {
+      setActivities((prev) => prev.filter((a) => a.id !== optimisticId));
+      toast.error(result.error ?? "Failed to save");
+    }
+  }, [description, card.description, card.id, currentUser, onCardUpdated]);
 
   async function handleAssigneeToggle(userId: string) {
     if (!canEdit) return;
@@ -154,8 +190,27 @@ export function CardModal({
               <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
             )}
           </div>
-          {/* Save spinner — DialogContent renders the close button itself */}
-          {saving && <Loader2 className="h-4 w-4 text-slate-400 animate-spin flex-shrink-0 mt-1 mr-6" />}
+          {/* Save / delete indicators — DialogContent renders the × close button itself */}
+          <div className="flex items-center gap-2 flex-shrink-0 mr-6">
+            {saving   && <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />}
+            {canEdit  && (
+              deleting
+                ? <Loader2 className="h-4 w-4 text-destructive animate-spin" />
+                : (
+                  <button
+                    onClick={async () => {
+                      setDeleting(true);
+                      await onCardDeleted();
+                      setDeleting(false);
+                    }}
+                    title="Delete card"
+                    className="p-1 text-slate-400 hover:text-destructive transition-colors rounded"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )
+            )}
+          </div>
         </div>
 
         {/* ── Body ──────────────────────────────────────────────────────── */}
@@ -360,7 +415,7 @@ export function CardModal({
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  onBlur={() => save({ description: description || null })}
+                  onBlur={handleDescriptionSave}
                   placeholder="Add a description…"
                   rows={4}
                   className="resize-none text-sm bg-slate-50 w-full"
@@ -395,14 +450,29 @@ export function CardModal({
                       month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
                     });
                     const target = a.targetUser?.name ?? a.targetUser?.email ?? "someone";
-                    const desc =
-                      a.action === "MOVED"
-                        ? `moved this card${a.fromColumn ? ` from "${a.fromColumn.title}"` : ""}${a.toColumn ? ` to "${a.toColumn.title}"` : ""}`
-                        : a.action === "ASSIGNED"
-                        ? `assigned ${target} to this card`
-                        : a.action === "UNASSIGNED"
-                        ? `removed ${target} from this card`
-                        : a.action.toLowerCase() + " this card";
+                    let desc: string;
+                    switch (a.action) {
+                      case "CREATED":
+                        desc = "created this card"; break;
+                      case "UPDATED": {
+                        if (a.metadata) {
+                          try {
+                            const m = JSON.parse(a.metadata);
+                            if (m.type === "description") { desc = "updated the description of this card"; break; }
+                            if (m.oldTitle && m.newTitle) { desc = `renamed this card from "${m.oldTitle}" to "${m.newTitle}"`; break; }
+                          } catch { /* */ }
+                        }
+                        desc = "updated this card"; break;
+                      }
+                      case "MOVED":
+                        desc = `moved this card${a.fromColumn ? ` from "${a.fromColumn.title}"` : ""}${a.toColumn ? ` to "${a.toColumn.title}"` : ""}`; break;
+                      case "ASSIGNED":
+                        desc = `assigned ${target} to this card`; break;
+                      case "UNASSIGNED":
+                        desc = `removed ${target} from this card`; break;
+                      default:
+                        desc = a.action.toLowerCase() + " this card";
+                    }
                     return (
                       <li key={a.id} className="flex items-start gap-3">
                         <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">

@@ -7,11 +7,51 @@ type Activity = {
   id: string;
   action: string;
   createdAt: string;
+  metadata:   string | null;
   user:       { name: string | null; email: string | null };
-  card:       { title: string };
+  card:       { title: string } | null;
   fromColumn: { title: string } | null;
   toColumn:   { title: string } | null;
+  targetUser: { name: string | null; email: string | null } | null;
 };
+
+function parseCardTitle(a: Activity): string {
+  if (a.card?.title) return a.card.title;
+  if (a.metadata) {
+    try { return JSON.parse(a.metadata).cardTitle ?? "unknown card"; } catch { /* */ }
+  }
+  return "unknown card";
+}
+
+function describeActivity(a: Activity): string {
+  const cardTitle  = parseCardTitle(a);
+  const target     = a.targetUser?.name ?? a.targetUser?.email ?? "someone";
+
+  switch (a.action) {
+    case "CREATED":
+      return `created "${cardTitle}"`;
+    case "UPDATED": {
+      if (a.metadata) {
+        try {
+          const m = JSON.parse(a.metadata);
+          if (m.type === "description") return `updated the description of "${cardTitle}"`;
+          if (m.oldTitle && m.newTitle)  return `renamed "${m.oldTitle}" to "${m.newTitle}"`;
+        } catch { /* */ }
+      }
+      return `updated "${cardTitle}"`;
+    }
+    case "DELETED":
+      return `deleted card "${cardTitle}"`;
+    case "MOVED":
+      return `moved "${cardTitle}"${a.fromColumn ? ` from "${a.fromColumn.title}"` : ""}${a.toColumn ? ` to "${a.toColumn.title}"` : ""}`;
+    case "ASSIGNED":
+      return `assigned ${target} to "${cardTitle}"`;
+    case "UNASSIGNED":
+      return `removed ${target} from "${cardTitle}"`;
+    default:
+      return `${a.action.toLowerCase()} "${cardTitle}"`;
+  }
+}
 
 export function BoardActivityPanel({
   boardId,
@@ -55,10 +95,6 @@ export function BoardActivityPanel({
               const when  = new Date(a.createdAt).toLocaleString("en-US", {
                 month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
               });
-              const desc =
-                a.action === "MOVED"
-                  ? `moved "${a.card.title}"${a.fromColumn ? ` from "${a.fromColumn.title}"` : ""}${a.toColumn ? ` to "${a.toColumn.title}"` : ""}`
-                  : `${a.action.toLowerCase()} "${a.card.title}"`;
               return (
                 <li key={a.id} className="flex gap-2.5">
                   <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">
@@ -66,7 +102,7 @@ export function BoardActivityPanel({
                   </div>
                   <div className="text-sm leading-snug">
                     <span className="font-medium text-slate-800">{actor}</span>{" "}
-                    <span className="text-slate-500">{desc}</span>
+                    <span className="text-slate-500">{describeActivity(a)}</span>
                     <br />
                     <span className="text-[11px] text-slate-400">{when}</span>
                   </div>
