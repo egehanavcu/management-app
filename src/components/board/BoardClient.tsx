@@ -3,8 +3,9 @@
 import { useState, useRef, useCallback } from "react";
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
-  useSensor, useSensors, closestCorners,
+  useSensor, useSensors, closestCorners, pointerWithin,
   type DragStartEvent, type DragOverEvent, type DragEndEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
@@ -55,7 +56,11 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
   const [showMembers,      setShowMembers]     = useState(false);
   const [showActivity,     setShowActivity]    = useState(false);
   const [syncing,          setSyncing]         = useState(false);
-  const preDragSnapshot = useRef<DndColumn[]>(initialColumns);
+  const preDragSnapshot   = useRef<DndColumn[]>(initialColumns);
+  // Always-current ref so drag handlers read fresh state even if React hasn't
+  // re-rendered since the last setColumns call (stale-closure guard).
+  const latestColumnsRef  = useRef<DndColumn[]>(columns);
+  latestColumnsRef.current = columns;
 
   const canEdit   = userRole === "OWNER" || userRole === "EDITOR";
   const isOwner   = userRole === "OWNER";
@@ -129,13 +134,29 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // ─── Collision detection ─────────────────────────────────────────────────
+  // pointerWithin checks whether the pointer is *inside* a droppable rect —
+  // this correctly detects empty columns regardless of their height.
+  // When pointer is over a card we prefer the card over the column background.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    if (activeColumn) return closestCorners(args);
+
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      const cardCollision = pointerCollisions.find(({ id }) => !columnIds.includes(String(id)));
+      return cardCollision ? [cardCollision] : pointerCollisions;
+    }
+
+    return closestCorners(args);
+  }, [activeColumn, columnIds]);
+
   // ─── Drag start ───────────────────────────────────────────────────────────
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
-    preDragSnapshot.current = columns;
+    preDragSnapshot.current = latestColumnsRef.current;
     const data = active.data.current as CardDragData | ColumnDragData | undefined;
     if (data?.type === "card")   { setActiveCard(data.card);     setActiveColumn(null); }
     if (data?.type === "column") { setActiveColumn(data.column); setActiveCard(null); }
-  }, [columns]);
+  }, []);
 
   // ─── Drag over ────────────────────────────────────────────────────────────
   const handleDragOver = useCallback(({ active, over }: DragOverEvent) => {
@@ -197,9 +218,10 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
     if (!over) { setColumns(snapshot); return; }
 
     if (activeType === "column") {
-      const idx = columns.findIndex((c) => c.id === activeId);
+      const cols = latestColumnsRef.current;
+      const idx = cols.findIndex((c) => c.id === activeId);
       if (idx === -1) { setColumns(snapshot); return; }
-      const siblings    = columns.filter((c) => c.id !== activeId);
+      const siblings    = cols.filter((c) => c.id !== activeId);
       const newPosition = calculateNewPosition(siblings, idx);
       setColumns((prev) => prev.map((c) => c.id === activeId ? { ...c, position: newPosition } : c));
       setSyncing(true);
@@ -214,15 +236,61 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
     }
 
     if (activeType !== "card") return;
-    const finalCol = findCardColumn(activeId, columns);
+
+    const overId     = String(over.id);
+    const latestCols = latestColumnsRef.current;
+
+    // Is the drop target a column container (empty column) or a card?
+    // Checking over.id against known column IDs is more reliable than over.data.current.
+    const isColumnDrop = latestCols.some((c) => c.id === overId);
+
+    if (isColumnDrop) {
+      // ── Empty column drop ────────────────────────────────────────────────────
+      const targetColumnId = overId;
+      const newPosition    = 1024.0;
+
+      const sourceCol = findCardColumn(activeId, latestCols);
+      if (!sourceCol) { setColumns(snapshot); return; }
+      const movedCard = sourceCol.cards.find((c) => c.id === activeId)!;
+
+      console.log("Moving card:", activeId, "to column:", targetColumnId, "at pos:", newPosition);
+
+      setColumns(latestCols.map((col) => {
+        const withoutCard = col.cards.filter((c) => c.id !== activeId);
+        if (col.id === targetColumnId)
+          return { ...col, cards: [...withoutCard, { ...movedCard, columnId: targetColumnId, position: newPosition }] };
+        if (col.id === sourceCol.id)
+          return { ...col, cards: withoutCard };
+        return col;
+      }));
+      setSyncing(true);
+      fetch(`/api/cards/${activeId}/move`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newColumnId: targetColumnId, newPosition }),
+      })
+        .then((r) => { if (!r.ok) throw new Error(); })
+        .catch(() => { setColumns(snapshot); toast.error("Couldn't save card position — changes reverted."); })
+        .finally(() => setSyncing(false));
+      return;
+    }
+
+    // ── Card drop (same or cross column) ────────────────────────────────────────
+    // handleDragOver has already reordered the cards in latestCols.
+    // Find the card's current position in the reordered array and compute the fraction.
+    const finalCol = findCardColumn(activeId, latestCols);
     if (!finalCol) { setColumns(snapshot); return; }
-    const finalIdx = finalCol.cards.findIndex((c) => c.id === activeId);
+    const finalIdx    = finalCol.cards.findIndex((c) => c.id === activeId);
     if (finalIdx === -1) { setColumns(snapshot); return; }
     const siblings    = finalCol.cards.filter((c) => c.id !== activeId);
     const newPosition = calculateNewPosition(siblings, finalIdx);
+
+    console.log("Moving card:", activeId, "to column:", finalCol.id, "at pos:", newPosition);
+
     setColumns((prev) => prev.map((col) => ({
       ...col,
-      cards: col.cards.map((c) => c.id === activeId ? { ...c, position: newPosition, columnId: finalCol.id } : c),
+      cards: col.cards.map((c) => c.id === activeId
+        ? { ...c, position: newPosition, columnId: finalCol.id }
+        : c),
     })));
     setSyncing(true);
     fetch(`/api/cards/${activeId}/move`, {
@@ -232,7 +300,7 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
       .then((r) => { if (!r.ok) throw new Error(); })
       .catch(() => { setColumns(snapshot); toast.error("Couldn't save card position — changes reverted."); })
       .finally(() => setSyncing(false));
-  }, [columns]);
+  }, []);
 
   const handleDragCancel = useCallback(() => {
     setActiveCard(null); setActiveColumn(null); setColumns(preDragSnapshot.current);
@@ -281,7 +349,7 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
         {/* Columns */}
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}

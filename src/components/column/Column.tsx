@@ -151,26 +151,39 @@ export function Column({
           <div
             ref={setNodeRef}
             className={[
-              "flex-1 overflow-y-auto px-2 space-y-2 pb-2 min-h-[2rem] rounded-lg transition-colors",
-              isOver ? "bg-blue-50/60" : "",
+              "flex-1 overflow-y-auto px-2 pb-2 min-h-[120px] rounded-lg transition-colors",
+              isOver ? "bg-blue-50/50" : "",
             ].join(" ")}
           >
-            {column.cards.map((card) => (
-              <SortableCard
-                key={card.id}
-                card={card}
-                canDrag={canEdit}
-                onCardClick={onCardClick}
-              />
-            ))}
+            <div className="space-y-2">
+              {column.cards.map((card) => (
+                <SortableCard
+                  key={card.id}
+                  card={card}
+                  canDrag={canEdit}
+                  onCardClick={onCardClick}
+                />
+              ))}
 
-            {addingCard && (
-              <AddCardForm
-                columnId={column.id}
-                boardId={boardId}
-                onClose={() => setAddingCard(false)}
-                onCardAdded={(card) => { onCardAdded(card); setAddingCard(false); }}
-              />
+              {addingCard && (
+                <AddCardForm
+                  columnId={column.id}
+                  boardId={boardId}
+                  onClose={() => setAddingCard(false)}
+                  onCardAdded={(card) => { onCardAdded(card); setAddingCard(false); }}
+                />
+              )}
+            </div>
+
+            {column.cards.length === 0 && !addingCard && (
+              <div
+                className={[
+                  "mt-1 flex items-center justify-center rounded-lg border-2 border-dashed py-8 transition-colors pointer-events-none select-none",
+                  isOver ? "border-blue-300 bg-blue-50/40" : "border-slate-200",
+                ].join(" ")}
+              >
+                <span className="text-xs text-slate-400">Drop cards here</span>
+              </div>
             )}
           </div>
         </SortableContext>
