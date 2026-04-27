@@ -82,7 +82,6 @@ export interface CreateCardPayload {
   title: string;
   description?: string;
   dueDate?: string;
-  assignedUserId?: string;
 }
 
 export interface UpdateCardPayload {

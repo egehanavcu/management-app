@@ -33,12 +33,11 @@ export async function POST(req: Request) {
       title: body.title.trim(),
       description: body.description,
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
-      assignedUserId: body.assignedUserId,
       columnId: body.columnId,
       position: last ? last.position + 1 : 1,
     },
     include: {
-      assignedUser: { omit: { password: true } },
+      assignees: { include: { user: { omit: { password: true } } } },
       labels: { include: { label: true } },
     },
   });

@@ -36,10 +36,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const movedCard = await tx.card.update({
       where: { id },
       data: { columnId: body.newColumnId, position: body.newPosition },
-      include: {
-        assignedUser: { omit: { password: true } },
-        labels: { include: { label: true } },
-      },
     });
 
     await tx.activity.create({
