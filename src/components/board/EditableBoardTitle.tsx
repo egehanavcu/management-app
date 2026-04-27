@@ -10,9 +10,10 @@ interface EditableBoardTitleProps {
   boardId: string;
   initialTitle: string;
   canEdit: boolean;
+  syncing?: boolean;
 }
 
-export function EditableBoardTitle({ boardId, initialTitle, canEdit }: EditableBoardTitleProps) {
+export function EditableBoardTitle({ boardId, initialTitle, canEdit, syncing = false }: EditableBoardTitleProps) {
   const router    = useRouter();
   const inputRef  = useRef<HTMLInputElement>(null);
 
@@ -129,11 +130,10 @@ export function EditableBoardTitle({ boardId, initialTitle, canEdit }: EditableB
         {title}
       </h1>
 
-      {/* Saving spinner — visible while the API request is in flight */}
-      {saving ? (
-        <Loader2 className="h-4 w-4 text-white/60 animate-spin flex-shrink-0" aria-label="Saving…" />
+      {/* Spinner slot — shown for local title saves and global background syncs */}
+      {saving || syncing ? (
+        <Loader2 className="h-4 w-4 text-white/60 animate-spin flex-shrink-0" aria-label="Syncing…" />
       ) : (
-        /* Pencil hint — only visible on hover so the header stays clean */
         <Pencil
           aria-hidden
           className="h-3.5 w-3.5 text-white/0 group-hover:text-white/50 flex-shrink-0 transition-colors duration-150"

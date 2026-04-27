@@ -444,8 +444,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
         {/* Left: title + description */}
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           <div className="flex items-center gap-2 min-w-0">
-            <EditableBoardTitle boardId={boardId} initialTitle={boardTitle} canEdit={canEdit} />
-            {syncing && <span className="text-[11px] text-white/60 animate-pulse flex-shrink-0">Syncing…</span>}
+            <EditableBoardTitle boardId={boardId} initialTitle={boardTitle} canEdit={canEdit} syncing={syncing} />
           </div>
           <EditableBoardDescription
             boardId={boardId}
