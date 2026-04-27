@@ -8,7 +8,7 @@ import type { DndCard } from "@/types/dnd";
 export function CardOverlay({ card }: { card: DndCard }) {
   return (
     <div
-      className="rotate-2 scale-105 shadow-2xl opacity-95 pointer-events-none"
+      className="rotate-3 scale-[1.03] shadow-2xl opacity-[0.97] pointer-events-none"
       style={{ width: "18rem" }}
     >
       <CardItem card={card} />

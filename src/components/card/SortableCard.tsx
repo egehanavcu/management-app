@@ -12,7 +12,10 @@ interface SortableCardProps {
 }
 
 export function SortableCard({ card, canDrag, onCardClick }: SortableCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes, listeners, setNodeRef,
+    transform, transition, isDragging,
+  } = useSortable({
     id: card.id,
     data: { type: "card", card } satisfies CardDragData,
     disabled: !canDrag,
@@ -21,13 +24,22 @@ export function SortableCard({ card, canDrag, onCardClick }: SortableCardProps) 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0 : 1,
-    zIndex: isDragging ? 10 : undefined,
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <CardItem card={card} onClick={() => onCardClick(card.id)} />
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative">
+      {/* Render CardItem invisible when dragging so the placeholder takes its exact dimensions */}
+      <div className={isDragging ? "invisible" : undefined}>
+        <CardItem card={card} onClick={isDragging ? undefined : () => onCardClick(card.id)} />
+      </div>
+
+      {/* Ghost placeholder — visible only while this card is the active drag item */}
+      {isDragging && (
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/50 transition-opacity"
+        />
+      )}
     </div>
   );
 }
