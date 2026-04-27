@@ -24,17 +24,25 @@ export function CreateBoardModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const router = useRouter();
+  const router  = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, isPending] = useActionState(createBoard, initial);
 
+  // Track which boardId we've already navigated to so the effect is a no-op
+  // if it re-fires because onClose changed reference (new arrow fn each render).
+  const navigatedTo = useRef<string | null>(null);
+
   useEffect(() => {
-    if (state.success && state.boardId) {
-      onClose();
+    if (state.success && state.boardId && state.boardId !== navigatedTo.current) {
+      navigatedTo.current = state.boardId;
       formRef.current?.reset();
+      onClose();
       router.push(`/boards/${state.boardId}`);
     }
-  }, [state.success, state.boardId, onClose, router]);
+    // Deliberately omit onClose/router — they're stable enough and including them
+    // is what caused the loop (new onClose ref on every SidebarNav re-render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.boardId]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
