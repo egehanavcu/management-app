@@ -1,20 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useTransition } from "react";
-import { X, Calendar, AlignLeft, Tag, User, Clock, Loader2, Check } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { X, Calendar, AlignLeft, Tag, User, Clock, Loader2, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { updateCard, toggleCardLabel } from "@/lib/actions";
+import { updateCard } from "@/lib/actions";
+import { LABEL_COLORS, getLabelColor } from "@/lib/label-colors";
 import type { DndCard, DndBoardMember, BoardLabel } from "@/types/dnd";
-
-const LABEL_BG: Record<string, string> = {
-  red: "bg-red-400", orange: "bg-orange-400", yellow: "bg-yellow-400",
-  green: "bg-emerald-400", blue: "bg-blue-400", purple: "bg-purple-400",
-  pink: "bg-pink-400", teal: "bg-teal-400",
-};
-function labelBg(c: string) { return LABEL_BG[c.toLowerCase()] ?? "bg-slate-400"; }
 
 function fmt(d: Date | string | null) {
   if (!d) return "";
@@ -39,10 +32,14 @@ interface CardModalProps {
   canEdit: boolean;
   onClose: () => void;
   onCardUpdated: (card: DndCard) => void;
+  onLabelToggled: (labelId: string, add: boolean) => Promise<boolean>;
+  onLabelCreated: (name: string, color: string) => Promise<boolean>;
 }
 
-export function CardModal({ card, columnTitle, boardId, members, labels, canEdit, onClose, onCardUpdated }: CardModalProps) {
-  // Local form state — mirrors card, updated optimistically
+export function CardModal({
+  card, columnTitle, members, labels, canEdit,
+  onClose, onCardUpdated, onLabelToggled, onLabelCreated,
+}: CardModalProps) {
   const [title,          setTitle]          = useState(card.title);
   const [description,    setDescription]    = useState(card.description ?? "");
   const [dueDate,        setDueDate]        = useState(fmt(card.dueDate));
@@ -51,12 +48,16 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
     new Set(card.labels.map((l) => l.label.id))
   );
 
+  // Create-label inline form state
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [newName,      setNewName]      = useState("");
+  const [newColor,     setNewColor]     = useState<string>(LABEL_COLORS[4].key); // blue default
+  const [creating,     setCreating]     = useState(false);
+
   const [activities, setActivities]  = useState<Activity[]>([]);
   const [actLoading, setActLoading]  = useState(true);
   const [saving,     setSaving]      = useState(false);
-  const [, startTransition]          = useTransition();
 
-  // Fetch activity on open
   useEffect(() => {
     setActLoading(true);
     fetch(`/api/cards/${card.id}/activity`)
@@ -80,7 +81,7 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
     [card.id, onCardUpdated]
   );
 
-  function handleLabelToggle(labelId: string) {
+  async function handleLabelToggle(labelId: string) {
     if (!canEdit) return;
     const add = !activeLabels.has(labelId);
     setActiveLabels((prev) => {
@@ -88,23 +89,40 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
       add ? next.add(labelId) : next.delete(labelId);
       return next;
     });
-    startTransition(async () => {
-      const r = await toggleCardLabel(card.id, labelId, add, boardId);
-      if (!r.success) {
-        toast.error(r.error ?? "Failed to update label");
-        setActiveLabels((prev) => {
-          const next = new Set(prev);
-          add ? next.delete(labelId) : next.add(labelId);
-          return next;
-        });
-      }
-    });
+    const ok = await onLabelToggled(labelId, add);
+    if (!ok) {
+      setActiveLabels((prev) => {
+        const next = new Set(prev);
+        add ? next.delete(labelId) : next.add(labelId);
+        return next;
+      });
+    }
+  }
+
+  async function handleCreateLabel() {
+    const name = newName.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    const ok = await onLabelCreated(name, newColor);
+    setCreating(false);
+    if (ok) {
+      setShowCreate(false);
+      setNewName("");
+      setNewColor(LABEL_COLORS[4].key);
+    }
+  }
+
+  function cancelCreate() {
+    setShowCreate(false);
+    setNewName("");
+    setNewColor(LABEL_COLORS[4].key);
   }
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
-        {/* Header */}
+
+        {/* ── Header ────────────────────────────────────────────────────── */}
         <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-slate-100">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
@@ -127,8 +145,9 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex gap-0 overflow-y-auto max-h-[70vh]">
+        {/* ── Body ──────────────────────────────────────────────────────── */}
+        <div className="flex overflow-y-auto max-h-[70vh]">
+
           {/* Main: description + activity */}
           <div className="flex-1 min-w-0 px-6 py-4 space-y-6">
 
@@ -142,7 +161,7 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   onBlur={() => save({ description: description || null })}
-                  placeholder="Add a description (Markdown supported)…"
+                  placeholder="Add a description…"
                   rows={4}
                   className="resize-none text-sm bg-slate-50"
                 />
@@ -196,7 +215,7 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
             </section>
           </div>
 
-          {/* Sidebar: due date, assignee, labels */}
+          {/* ── Sidebar ───────────────────────────────────────────────── */}
           <div className="w-52 flex-shrink-0 border-l border-slate-100 px-4 py-4 space-y-5 bg-slate-50/50">
 
             {/* Due date */}
@@ -208,10 +227,7 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
                 <input
                   type="date"
                   value={dueDate}
-                  onChange={(e) => {
-                    setDueDate(e.target.value);
-                    save({ dueDate: e.target.value || null });
-                  }}
+                  onChange={(e) => { setDueDate(e.target.value); save({ dueDate: e.target.value || null }); }}
                   className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               ) : (
@@ -235,11 +251,7 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
               {canEdit ? (
                 <select
                   value={assignedUserId}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setAssignedUserId(val);
-                    save({ assignedUserId: val || null });
-                  }}
+                  onChange={(e) => { const v = e.target.value; setAssignedUserId(v); save({ assignedUserId: v || null }); }}
                   className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
                   <option value="">Unassigned</option>
@@ -251,40 +263,114 @@ export function CardModal({ card, columnTitle, boardId, members, labels, canEdit
                 </select>
               ) : (
                 <p className="text-sm text-slate-700">
-                  {card.assignedUser
-                    ? (card.assignedUser.name ?? card.assignedUser.email)
-                    : "—"}
+                  {card.assignedUser ? (card.assignedUser.name ?? card.assignedUser.email) : "—"}
                 </p>
               )}
             </section>
 
-            {/* Labels */}
-            {labels.length > 0 && (
-              <section>
-                <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  <Tag className="h-3 w-3" /> Labels
-                </h3>
-                <div className="space-y-1.5">
+            {/* ── Labels ──────────────────────────────────────────────── */}
+            <section>
+              <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                <Tag className="h-3 w-3" /> Labels
+              </h3>
+
+              {/* Toggle list */}
+              {labels.length > 0 && (
+                <div className="space-y-0.5 mb-1">
                   {labels.map((label) => {
                     const active = activeLabels.has(label.id);
+                    const lc     = getLabelColor(label.color);
                     return (
                       <button
                         key={label.id}
                         disabled={!canEdit}
                         onClick={() => handleLabelToggle(label.id)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                          active ? "ring-2 ring-offset-1 ring-slate-400" : "opacity-70 hover:opacity-100"
-                        } ${canEdit ? "cursor-pointer" : "cursor-default"}`}
+                        className={[
+                          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                          active
+                            ? `${lc.subtle} ${lc.text}`
+                            : "hover:bg-slate-100 text-slate-600",
+                          canEdit ? "cursor-pointer" : "cursor-default",
+                        ].join(" ")}
                       >
-                        <span className={`w-3 h-3 rounded-full flex-shrink-0 ${labelBg(label.color)}`} />
-                        <span className="truncate text-slate-700">{label.name}</span>
-                        {active && <Check className="h-3 w-3 ml-auto text-slate-500 flex-shrink-0" />}
+                        {/* Color swatch */}
+                        <span className={`h-2.5 w-2.5 rounded-sm flex-shrink-0 ${lc.bg}`} />
+                        <span className="flex-1 truncate text-left">{label.name}</span>
+                        <Check
+                          className={`h-3 w-3 flex-shrink-0 transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
+                        />
                       </button>
                     );
                   })}
                 </div>
-              </section>
-            )}
+              )}
+
+              {/* Create label form */}
+              {canEdit && (
+                showCreate ? (
+                  <div className="mt-2 space-y-2 p-2 bg-white rounded-lg border border-slate-200">
+                    <input
+                      autoFocus
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")  { e.preventDefault(); void handleCreateLabel(); }
+                        if (e.key === "Escape") { e.preventDefault(); cancelCreate(); }
+                      }}
+                      placeholder="Label name…"
+                      maxLength={30}
+                      className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+
+                    {/* Color grid: 4 × 2 */}
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {LABEL_COLORS.map((c) => (
+                        <button
+                          key={c.key}
+                          type="button"
+                          title={c.key}
+                          onClick={() => setNewColor(c.key)}
+                          className={[
+                            `w-6 h-6 rounded-md ${c.bg} transition-transform`,
+                            newColor === c.key
+                              ? "ring-2 ring-offset-1 ring-slate-600 scale-110"
+                              : "hover:scale-105 opacity-80 hover:opacity-100",
+                          ].join(" ")}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="flex gap-1.5 pt-0.5">
+                      <button
+                        onClick={() => void handleCreateLabel()}
+                        disabled={!newName.trim() || creating}
+                        className="flex-1 flex items-center justify-center gap-1 text-xs bg-primary text-white py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                      >
+                        {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : "Create"}
+                      </button>
+                      <button
+                        onClick={cancelCreate}
+                        className="text-xs text-slate-500 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    className="mt-1 w-full flex items-center justify-center gap-1 text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100 py-1.5 rounded-md transition-colors"
+                  >
+                    <Plus className="h-3 w-3" /> New label
+                  </button>
+                )
+              )}
+
+              {/* Viewer: nothing if no labels assigned */}
+              {!canEdit && labels.length === 0 && (
+                <p className="text-xs text-slate-400 italic">No labels.</p>
+              )}
+            </section>
           </div>
         </div>
       </DialogContent>

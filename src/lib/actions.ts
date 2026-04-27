@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hasMinRole } from "@/types";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { DndCard, DndColumn } from "@/types/dnd";
+import type { DndCard, DndColumn, BoardLabel } from "@/types/dnd";
 
 export type ActionState      = { error?: string; success?: boolean; boardId?: string };
 export type CreateCardState  = { error?: string; success?: boolean; card?: DndCard };
@@ -111,6 +111,34 @@ export async function deleteBoardAction(boardId: string): Promise<ActionState> {
     revalidatePath("/boards");
   } catch { return { error: "Failed to delete board" }; }
   redirect("/boards");
+}
+
+export async function createLabel(
+  boardId: string,
+  name: string,
+  color: string
+): Promise<{ success: boolean; error?: string; label?: BoardLabel }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  const membership = await prisma.boardMember.findUnique({
+    where: { boardId_userId: { boardId, userId: session.user.id } },
+  });
+  if (!membership || !hasMinRole(membership.role, "EDITOR"))
+    return { success: false, error: "Only editors and owners can create labels" };
+
+  const trimmed = name.trim();
+  if (!trimmed) return { success: false, error: "Label name is required" };
+
+  try {
+    const label = await prisma.label.create({
+      data: { name: trimmed, color, boardId },
+    });
+    revalidatePath(`/boards/${boardId}`);
+    return { success: true, label: { id: label.id, name: label.name, color: label.color } };
+  } catch {
+    return { success: false, error: "Failed to create label" };
+  }
 }
 
 // ─── Column ───────────────────────────────────────────────────────────────────

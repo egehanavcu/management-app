@@ -29,7 +29,7 @@ import {
   AlertDialogMedia,
 } from "@/components/ui/alert-dialog";
 import { calculateNewPosition }       from "@/lib/position";
-import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription } from "@/lib/actions";
+import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription, toggleCardLabel, createLabel } from "@/lib/actions";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
 import type { Role } from "@/generated/prisma";
 
@@ -57,9 +57,10 @@ function findCardColumn(cardId: string, cols: DndColumn[]) {
   return cols.find((c) => c.cards.some((card) => card.id === cardId));
 }
 
-export function BoardClient({ boardId, boardTitle, boardDescription, members: initialMembers, labels, initialColumns, userRole }: BoardClientProps) {
+export function BoardClient({ boardId, boardTitle, boardDescription, members: initialMembers, labels: initialLabels, initialColumns, userRole }: BoardClientProps) {
   const [columns,            setColumns]           = useState<DndColumn[]>(initialColumns);
   const [members,            setMembers]           = useState<DndBoardMember[]>(initialMembers);
+  const [labels,             setLabels]            = useState<BoardLabel[]>(initialLabels);
   const [activeCard,         setActiveCard]        = useState<DndCard | null>(null);
   const [activeColumn,       setActiveColumn]      = useState<DndColumn | null>(null);
   const [selectedCardId,     setSelectedCardId]    = useState<string | null>(null);
@@ -132,6 +133,52 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
     setColumns((prev) => prev.filter((c) => c.id !== column.id));
     return true;
   }, []);
+
+  const handleLabelToggled = useCallback(async (labelId: string, add: boolean): Promise<boolean> => {
+    // Capture the card ID synchronously — selectedCardId could change while awaiting.
+    const cardId = selectedCardId;
+    if (!cardId) return false;
+
+    // Optimistic update: mutate the card's labels array in columns state so
+    // CardItem strips reflect the change before the server responds.
+    const applyToColumns = (a: boolean) =>
+      setColumns((prev) => prev.map((col) => ({
+        ...col,
+        cards: col.cards.map((card) => {
+          if (card.id !== cardId) return card;
+          if (a) {
+            const boardLabel = labels.find((l) => l.id === labelId);
+            if (!boardLabel) return card;
+            return { ...card, labels: [...card.labels, { label: boardLabel }] };
+          }
+          return { ...card, labels: card.labels.filter((l) => l.label.id !== labelId) };
+        }),
+      })));
+
+    applyToColumns(add);
+    setSyncing(true);
+    const result = await toggleCardLabel(cardId, labelId, add, boardId);
+    setSyncing(false);
+
+    if (!result.success) {
+      applyToColumns(!add);  // rollback
+      toast.error(result.error ?? "Failed to update label");
+      return false;
+    }
+    return true;
+  }, [selectedCardId, boardId, labels]);
+
+  const handleLabelCreated = useCallback(async (name: string, color: string): Promise<boolean> => {
+    setSyncing(true);
+    const result = await createLabel(boardId, name, color);
+    setSyncing(false);
+    if (!result.success || !result.label) {
+      toast.error(result.error ?? "Failed to create label");
+      return false;
+    }
+    setLabels((prev) => [...prev, result.label!]);
+    return true;
+  }, [boardId]);
 
   const handleDescriptionChanged = useCallback(async (newDescription: string | null): Promise<boolean> => {
     setSyncing(true);
@@ -483,6 +530,8 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
           canEdit={canEdit}
           onClose={() => setSelectedCardId(null)}
           onCardUpdated={handleCardUpdated}
+          onLabelToggled={handleLabelToggled}
+          onLabelCreated={handleLabelCreated}
         />
       )}
 
