@@ -48,6 +48,52 @@ function describeActivity(a: Activity): string {
       return `assigned ${target} to "${cardTitle}"`;
     case "UNASSIGNED":
       return `removed ${target} from "${cardTitle}"`;
+    case "DUE_DATE_UPDATE": {
+      if (a.metadata) {
+        try {
+          const { date } = JSON.parse(a.metadata);
+          if (date) {
+            const d = new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            return `set the due date of "${cardTitle}" to ${d}`;
+          }
+          return `removed the due date from "${cardTitle}"`;
+        } catch { /* */ }
+      }
+      return `updated the due date of "${cardTitle}"`;
+    }
+    case "LABEL_ADD": {
+      if (a.metadata) {
+        try { const { labelName } = JSON.parse(a.metadata); return `added the "${labelName}" label to "${cardTitle}"`; } catch { /* */ }
+      }
+      return `added a label to "${cardTitle}"`;
+    }
+    case "LABEL_REMOVE": {
+      if (a.metadata) {
+        try { const { labelName } = JSON.parse(a.metadata); return `removed the "${labelName}" label from "${cardTitle}"`; } catch { /* */ }
+      }
+      return `removed a label from "${cardTitle}"`;
+    }
+    case "COLUMN_UPDATE": {
+      if (a.metadata) {
+        try {
+          const { oldTitle, newTitle } = JSON.parse(a.metadata);
+          if (oldTitle && newTitle) return `renamed column from "${oldTitle}" to "${newTitle}"`;
+        } catch { /* */ }
+      }
+      return "renamed a column";
+    }
+    case "COLUMN_CREATE": {
+      if (a.metadata) {
+        try { const { columnTitle } = JSON.parse(a.metadata); return `created column "${columnTitle}"`; } catch { /* */ }
+      }
+      return "created a column";
+    }
+    case "COLUMN_DELETE": {
+      if (a.metadata) {
+        try { const { columnTitle } = JSON.parse(a.metadata); return `deleted column "${columnTitle}"`; } catch { /* */ }
+      }
+      return "deleted a column";
+    }
     default:
       return `${a.action.toLowerCase()} "${cardTitle}"`;
   }

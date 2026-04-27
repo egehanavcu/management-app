@@ -122,6 +122,65 @@ export function CardModal({
     }
   }, [description, card.description, card.id, currentUser, onCardUpdated]);
 
+  const handleTitleSave = useCallback(async () => {
+    const trimmed = title.trim();
+    if (!trimmed || trimmed === card.title) return;
+
+    const optimisticId = `opt-${Date.now()}`;
+    setActivities((prev) => [{
+      id: optimisticId,
+      action: "UPDATED",
+      createdAt: new Date().toISOString(),
+      metadata: JSON.stringify({ oldTitle: card.title, newTitle: trimmed }),
+      user: currentUser,
+      fromColumn: null,
+      toColumn:   null,
+      targetUser: null,
+    }, ...prev]);
+
+    setSaving(true);
+    const result = await updateCard(card.id, { title: trimmed });
+    setSaving(false);
+
+    if (result.success && result.card) {
+      onCardUpdated(result.card);
+    } else {
+      setActivities((prev) => prev.filter((a) => a.id !== optimisticId));
+      setTitle(card.title);
+      toast.error(result.error ?? "Failed to save");
+    }
+  }, [title, card.title, card.id, currentUser, onCardUpdated]);
+
+  const saveDueDate = useCallback(async (newDateStr: string) => {
+    const newDate  = newDateStr || null;
+    const prevDate = fmt(card.dueDate) || null;
+    if (newDate === prevDate) return;
+
+    const optimisticId = `opt-${Date.now()}`;
+    setActivities((prev) => [{
+      id: optimisticId,
+      action: "DUE_DATE_UPDATE",
+      createdAt: new Date().toISOString(),
+      metadata: JSON.stringify({ date: newDate }),
+      user: currentUser,
+      fromColumn: null,
+      toColumn:   null,
+      targetUser: null,
+    }, ...prev]);
+
+    setSaving(true);
+    const result = await updateCard(card.id, { dueDate: newDate });
+    setSaving(false);
+
+    if (result.success && result.card) {
+      onCardUpdated(result.card);
+    } else {
+      setActivities((prev) => prev.filter((a) => a.id !== optimisticId));
+      setDueDate(prevDate ?? "");
+      toast.error(result.error ?? "Failed to save");
+    }
+  }, [card.dueDate, card.id, currentUser, onCardUpdated]);
+
   async function handleAssigneeToggle(userId: string) {
     if (!canEdit) return;
     const add = !activeAssignees.has(userId);
@@ -129,6 +188,18 @@ export function CardModal({
     const ok = await onAssigneeToggled(userId, add);
     if (!ok) {
       setActiveAssignees((prev) => { const n = new Set(prev); add ? n.delete(userId) : n.add(userId); return n; });
+    } else {
+      const member = members.find((m) => m.userId === userId);
+      setActivities((prev) => [{
+        id: `opt-${Date.now()}`,
+        action: add ? "ASSIGNED" : "UNASSIGNED",
+        createdAt: new Date().toISOString(),
+        metadata: null,
+        user: currentUser,
+        fromColumn: null,
+        toColumn:   null,
+        targetUser: member ? { name: member.user.name, email: member.user.email } : { name: null, email: null },
+      }, ...prev]);
     }
   }
 
@@ -147,6 +218,20 @@ export function CardModal({
         add ? next.delete(labelId) : next.add(labelId);
         return next;
       });
+    } else {
+      const boardLabel = labels.find((l) => l.id === labelId);
+      if (boardLabel) {
+        setActivities((prev) => [{
+          id: `opt-${Date.now()}`,
+          action: add ? "LABEL_ADD" : "LABEL_REMOVE",
+          createdAt: new Date().toISOString(),
+          metadata: JSON.stringify({ labelName: boardLabel.name, labelColor: boardLabel.color }),
+          user: currentUser,
+          fromColumn: null,
+          toColumn:   null,
+          targetUser: null,
+        }, ...prev]);
+      }
     }
   }
 
@@ -184,7 +269,7 @@ export function CardModal({
                 className="w-full text-lg font-semibold text-slate-900 bg-transparent outline-none border-b-2 border-transparent focus:border-primary transition-colors"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => title.trim() && title !== card.title && save({ title: title.trim() })}
+                onBlur={() => void handleTitleSave()}
               />
             ) : (
               <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
@@ -231,12 +316,12 @@ export function CardModal({
                     <input
                       type="date"
                       value={dueDate}
-                      onChange={(e) => { setDueDate(e.target.value); save({ dueDate: e.target.value || null }); }}
+                      onChange={(e) => { setDueDate(e.target.value); void saveDueDate(e.target.value); }}
                       className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                     />
                     {dueDate && (
                       <button
-                        onClick={() => { setDueDate(""); save({ dueDate: null }); }}
+                        onClick={() => { setDueDate(""); void saveDueDate(""); }}
                         className="text-[11px] text-slate-400 hover:text-destructive transition-colors"
                       >
                         Clear
@@ -470,6 +555,31 @@ export function CardModal({
                         desc = `assigned ${target} to this card`; break;
                       case "UNASSIGNED":
                         desc = `removed ${target} from this card`; break;
+                      case "DUE_DATE_UPDATE": {
+                        if (a.metadata) {
+                          try {
+                            const { date } = JSON.parse(a.metadata);
+                            if (date) {
+                              const d = new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                              desc = `set the due date to ${d}`; break;
+                            }
+                            desc = "removed the due date"; break;
+                          } catch { /* */ }
+                        }
+                        desc = "updated the due date"; break;
+                      }
+                      case "LABEL_ADD": {
+                        if (a.metadata) {
+                          try { const { labelName } = JSON.parse(a.metadata); desc = `added the "${labelName}" label`; break; } catch { /* */ }
+                        }
+                        desc = "added a label"; break;
+                      }
+                      case "LABEL_REMOVE": {
+                        if (a.metadata) {
+                          try { const { labelName } = JSON.parse(a.metadata); desc = `removed the "${labelName}" label`; break; } catch { /* */ }
+                        }
+                        desc = "removed a label"; break;
+                      }
                       default:
                         desc = a.action.toLowerCase() + " this card";
                     }

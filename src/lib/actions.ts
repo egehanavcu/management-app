@@ -162,8 +162,19 @@ export async function renameColumn(
   if (!membership || !hasMinRole(membership.role, "EDITOR"))
     return { success: false, error: "Only editors and owners can rename columns" };
 
+  const oldTitle = column.title;
   try {
-    await prisma.column.update({ where: { id: columnId }, data: { title: trimmed } });
+    await prisma.$transaction([
+      prisma.column.update({ where: { id: columnId }, data: { title: trimmed } }),
+      prisma.activity.create({
+        data: {
+          action: "COLUMN_UPDATE",
+          boardId: column.boardId,
+          userId: session.user.id,
+          metadata: JSON.stringify({ oldTitle, newTitle: trimmed }),
+        },
+      }),
+    ]);
     revalidatePath(`/boards/${column.boardId}`);
     return { success: true };
   } catch {
@@ -187,8 +198,17 @@ export async function deleteColumn(
     return { success: false, error: "Only editors and owners can delete columns" };
 
   try {
-    // Cascade deletes all cards (and their activities) via Prisma schema relations.
-    await prisma.column.delete({ where: { id: columnId } });
+    await prisma.$transaction([
+      prisma.activity.create({
+        data: {
+          action: "COLUMN_DELETE",
+          boardId: column.boardId,
+          userId: session.user.id,
+          metadata: JSON.stringify({ columnTitle: column.title }),
+        },
+      }),
+      prisma.column.delete({ where: { id: columnId } }),
+    ]);
     revalidatePath(`/boards/${column.boardId}`);
     return { success: true };
   } catch {
@@ -211,9 +231,20 @@ export async function createColumn(
   if (!membership || !hasMinRole(membership.role, "EDITOR"))
     return { error: "You don't have permission to add columns" };
   try {
-    const last = await prisma.column.findFirst({ where: { boardId }, orderBy: { position: "desc" } });
-    const col  = await prisma.column.create({
-      data: { title, boardId, position: last ? last.position + 1 : 1 },
+    const col = await prisma.$transaction(async (tx) => {
+      const last = await tx.column.findFirst({ where: { boardId }, orderBy: { position: "desc" } });
+      const created = await tx.column.create({
+        data: { title, boardId, position: last ? last.position + 1 : 1 },
+      });
+      await tx.activity.create({
+        data: {
+          action: "COLUMN_CREATE",
+          boardId,
+          userId: session.user.id,
+          metadata: JSON.stringify({ columnTitle: title }),
+        },
+      });
+      return created;
     });
     revalidatePath(`/boards/${boardId}`);
     return { success: true, column: { id: col.id, title: col.title, position: col.position, boardId: col.boardId, cards: [] } };
@@ -278,6 +309,9 @@ export async function updateCard(
   const titleChanged = data.title !== undefined && data.title.trim() !== existing.title;
   const descChanged  = data.description !== undefined &&
     (data.description ?? "") !== (existing.description ?? "");
+  const prevDateStr  = existing.dueDate ? existing.dueDate.toISOString().split("T")[0] : null;
+  const nextDateStr  = data.dueDate !== undefined ? (data.dueDate || null) : undefined;
+  const dueDateChanged = nextDateStr !== undefined && nextDateStr !== prevDateStr;
   try {
     const updated = await prisma.$transaction(async (tx) => {
       const card = await tx.card.update({
@@ -313,6 +347,17 @@ export async function updateCard(
             cardId,
             userId: session.user.id,
             metadata: JSON.stringify({ type: "description" }),
+          },
+        });
+      }
+      if (dueDateChanged) {
+        await tx.activity.create({
+          data: {
+            action: "DUE_DATE_UPDATE",
+            boardId: existing.column.boardId,
+            cardId,
+            userId: session.user.id,
+            metadata: JSON.stringify({ date: nextDateStr }),
           },
         });
       }
@@ -386,16 +431,26 @@ export async function toggleCardLabel(
   });
   if (!membership || !hasMinRole(membership.role, "EDITOR"))
     return { success: false, error: "Forbidden" };
+  const label = await prisma.label.findUnique({ where: { id: labelId } });
   try {
-    if (add) {
-      await prisma.cardLabel.upsert({
-        where: { cardId_labelId: { cardId, labelId } },
-        create: { cardId, labelId },
-        update: {},
-      });
-    } else {
-      await prisma.cardLabel.delete({ where: { cardId_labelId: { cardId, labelId } } });
-    }
+    await prisma.$transaction([
+      add
+        ? prisma.cardLabel.upsert({
+            where: { cardId_labelId: { cardId, labelId } },
+            create: { cardId, labelId },
+            update: {},
+          })
+        : prisma.cardLabel.delete({ where: { cardId_labelId: { cardId, labelId } } }),
+      prisma.activity.create({
+        data: {
+          action: add ? "LABEL_ADD" : "LABEL_REMOVE",
+          boardId,
+          cardId,
+          userId: session.user.id,
+          metadata: JSON.stringify({ labelName: label?.name ?? "", labelColor: label?.color ?? "" }),
+        },
+      }),
+    ]);
     return { success: true };
   } catch { return { success: false, error: "Failed to update label" }; }
 }
