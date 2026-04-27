@@ -120,17 +120,21 @@ export default function BoardLoading() {
           Exact match of BoardClient header:
           flex items-center gap-4 px-5 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0
       */}
-      <div className="flex items-center gap-3 px-5 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-        {/* Board title ghost */}
-        <div className="h-6 w-48 rounded-lg bg-white/25 animate-pulse" />
+      <div className="flex items-center gap-3 px-5 py-2.5 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+        {/* Left: title + description — matches flex-1 min-w-0 flex flex-col gap-0.5 */}
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <div className="h-7 w-48 rounded-lg bg-white/25 animate-pulse" />
+          {/* Description ghost — h-5 matches the fixed height in EditableBoardDescription */}
+          <div className="h-5 w-64 rounded bg-white/15 animate-pulse" />
+        </div>
 
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Member avatar stack — 3 overlapping circles */}
-          <div className="flex items-center">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Member avatar stack — 3 spaced circles, matches gap-x-1 in real header */}
+          <div className="flex items-center gap-x-1">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="w-7 h-7 rounded-full bg-white/25 animate-pulse border-2 border-white/30 -ml-1.5 first:ml-0"
+                className="w-7 h-7 rounded-full bg-white/25 animate-pulse"
               />
             ))}
           </div>

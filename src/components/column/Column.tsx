@@ -184,7 +184,7 @@ export function Column({
               )}
             </div>
 
-            {column.cards.length === 0 && !addingCard && (
+            {column.cards.length === 0 && !addingCard && canEdit && (
               <div
                 className={[
                   "mt-1 flex items-center justify-center rounded-lg border-2 border-dashed py-8 transition-colors pointer-events-none select-none",

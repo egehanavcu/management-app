@@ -56,7 +56,7 @@ export function EditableBoardDescription({
   // ── Viewer / read-only ─────────────────────────────────────────────────────
   if (!canEdit) {
     if (!description) return null;
-    return <p className="text-xs text-white/55 truncate max-w-sm">{description}</p>;
+    return <p className="text-xs text-white/55 truncate max-w-sm leading-5 h-5">{description}</p>;
   }
 
   // ── Editing mode ───────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ export function EditableBoardDescription({
         ref={textareaRef}
         value={draft}
         maxLength={500}
-        rows={2}
+        rows={1}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -75,10 +75,10 @@ export function EditableBoardDescription({
         }}
         placeholder="Add a description…"
         className={[
-          "text-xs text-white/80 placeholder:text-white/35",
-          "bg-white/10 rounded px-2 py-1",
+          "h-5 text-xs text-white/80 placeholder:text-white/35 leading-5",
+          "bg-white/10 rounded px-2 py-0",
           "border border-white/20 focus:border-white/50 outline-none",
-          "w-full max-w-sm resize-none transition-colors duration-150",
+          "w-full max-w-sm resize-none overflow-hidden transition-colors duration-150",
         ].join(" ")}
       />
     );
@@ -91,7 +91,7 @@ export function EditableBoardDescription({
       onClick={startEditing}
       title="Click to edit description"
       className={[
-        "text-left text-xs max-w-sm truncate transition-colors duration-150",
+        "h-5 leading-5 text-left text-xs max-w-sm truncate transition-colors duration-150",
         description
           ? "text-white/55 hover:text-white/80"
           : "text-white/30 hover:text-white/50 italic",

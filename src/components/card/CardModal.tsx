@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Calendar, AlignLeft, Tag, User, Clock, Loader2, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCard } from "@/lib/actions";
 import { LABEL_COLORS, getLabelColor } from "@/lib/label-colors";
@@ -144,10 +145,170 @@ export function CardModal({
         </div>
 
         {/* ── Body ──────────────────────────────────────────────────────── */}
-        <div className="flex overflow-y-auto max-h-[70vh]">
+        <div className="overflow-y-auto max-h-[72vh] flex flex-col">
 
-          {/* Main: description + activity */}
-          <div className="flex-1 min-w-0 px-6 py-4 space-y-6">
+          {/* ── Properties ──────────────────────────────────────────────── */}
+          <div className="flex flex-col divide-y divide-slate-100 bg-slate-50/60 border-b border-slate-100">
+
+            {/* Due Date */}
+            <div className="flex items-center gap-0 px-6 py-2.5">
+              <div className="w-28 flex items-center gap-1.5 flex-shrink-0">
+                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Due Date</span>
+              </div>
+              <div className="flex-1 flex items-center gap-2">
+                {canEdit ? (
+                  <>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => { setDueDate(e.target.value); save({ dueDate: e.target.value || null }); }}
+                      className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    {dueDate && (
+                      <button
+                        onClick={() => { setDueDate(""); save({ dueDate: null }); }}
+                        className="text-[11px] text-slate-400 hover:text-destructive transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-sm text-slate-700">{dueDate || "—"}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Assignee */}
+            <div className="flex items-center gap-0 px-6 py-2.5">
+              <div className="w-28 flex items-center gap-1.5 flex-shrink-0">
+                <User className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Assignee</span>
+              </div>
+              <div className="flex-1">
+                {canEdit ? (
+                  <select
+                    value={assignedUserId}
+                    onChange={(e) => { const v = e.target.value; setAssignedUserId(v); save({ assignedUserId: v || null }); }}
+                    className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 w-full max-w-xs"
+                  >
+                    <option value="">Unassigned</option>
+                    {members.map((m) => (
+                      <option key={m.userId} value={m.userId}>
+                        {m.user.name ?? m.user.email}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-sm text-slate-700">
+                    {card.assignedUser ? (card.assignedUser.name ?? card.assignedUser.email) : "—"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Labels */}
+            <div className="flex items-start gap-0 px-6 py-2.5">
+              <div className="w-28 flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                <Tag className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Labels</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                {/* Label chips */}
+                {labels.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
+                    {labels.map((label) => {
+                      const active = activeLabels.has(label.id);
+                      const lc     = getLabelColor(label.color);
+                      return (
+                        <button
+                          key={label.id}
+                          disabled={!canEdit}
+                          onClick={() => handleLabelToggle(label.id)}
+                          title={canEdit ? (active ? "Remove label" : "Add label") : label.name}
+                          className={[
+                            "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border",
+                            active
+                              ? `${lc.subtle} ${lc.text} border-transparent`
+                              : "bg-white text-slate-400 border-slate-200 hover:border-slate-300",
+                            canEdit ? "cursor-pointer" : "cursor-default",
+                          ].join(" ")}
+                        >
+                          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${lc.bg}`} />
+                          {label.name}
+                          {active && <Check className="h-3 w-3 flex-shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {!canEdit && labels.length === 0 && (
+                  <span className="text-sm text-slate-400 italic">No labels.</span>
+                )}
+                {/* Create label form */}
+                {canEdit && (
+                  showCreate ? (
+                    <div className="mt-1 space-y-2 p-2.5 bg-white rounded-lg border border-slate-200 max-w-xs">
+                      <input
+                        autoFocus
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter")  { e.preventDefault(); void handleCreateLabel(); }
+                          if (e.key === "Escape") { e.preventDefault(); cancelCreate(); }
+                        }}
+                        placeholder="Label name…"
+                        maxLength={30}
+                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      <div className="grid grid-cols-8 gap-1">
+                        {LABEL_COLORS.map((c) => (
+                          <button
+                            key={c.key}
+                            type="button"
+                            title={c.key}
+                            onClick={() => setNewColor(c.key)}
+                            className={[
+                              `w-5 h-5 rounded ${c.bg} transition-transform`,
+                              newColor === c.key
+                                ? "ring-2 ring-offset-1 ring-slate-600 scale-110"
+                                : "hover:scale-105 opacity-80 hover:opacity-100",
+                            ].join(" ")}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => void handleCreateLabel()}
+                          disabled={!newName.trim() || creating}
+                          className="flex-1 flex items-center justify-center gap-1 text-xs bg-primary text-white py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                        >
+                          {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : "Create"}
+                        </button>
+                        <button
+                          onClick={cancelCreate}
+                          className="text-xs text-slate-500 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowCreate(true)}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> New label
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Main content ────────────────────────────────────────────── */}
+          <div className="px-6 py-5 space-y-0 flex-1">
 
             {/* Description */}
             <section>
@@ -161,16 +322,18 @@ export function CardModal({
                   onBlur={() => save({ description: description || null })}
                   placeholder="Add a description…"
                   rows={4}
-                  className="resize-none text-sm bg-slate-50"
+                  className="resize-none text-sm bg-slate-50 w-full"
                 />
               ) : description ? (
-                <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans bg-slate-50 rounded-lg p-3">
+                <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans bg-slate-50 rounded-lg p-3 w-full">
                   {description}
                 </pre>
               ) : (
                 <p className="text-sm text-slate-400 italic">No description.</p>
               )}
             </section>
+
+            <Separator className="my-5" />
 
             {/* Activity */}
             <section>
@@ -195,178 +358,19 @@ export function CardModal({
                         ? `moved this card${a.fromColumn ? ` from "${a.fromColumn.title}"` : ""}${a.toColumn ? ` to "${a.toColumn.title}"` : ""}`
                         : a.action.toLowerCase() + " this card";
                     return (
-                      <li key={a.id} className="flex items-start gap-2.5">
-                        <div className="w-6 h-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">
+                      <li key={a.id} className="flex items-start gap-3">
+                        <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">
                           {actor.slice(0, 2).toUpperCase()}
                         </div>
-                        <div className="text-sm leading-snug">
+                        <div className="flex-1 min-w-0 text-sm leading-snug">
                           <span className="font-medium text-slate-800">{actor}</span>
                           <span className="text-slate-500"> {desc}</span>
-                          <br />
-                          <span className="text-[11px] text-slate-400">{when}</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{when}</p>
                         </div>
                       </li>
                     );
                   })}
                 </ul>
-              )}
-            </section>
-          </div>
-
-          {/* ── Sidebar ───────────────────────────────────────────────── */}
-          <div className="w-52 flex-shrink-0 border-l border-slate-100 px-4 py-4 space-y-5 bg-slate-50/50">
-
-            {/* Due date */}
-            <section>
-              <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                <Calendar className="h-3 w-3" /> Due Date
-              </h3>
-              {canEdit ? (
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => { setDueDate(e.target.value); save({ dueDate: e.target.value || null }); }}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              ) : (
-                <p className="text-sm text-slate-700">{dueDate || "—"}</p>
-              )}
-              {dueDate && canEdit && (
-                <button
-                  onClick={() => { setDueDate(""); save({ dueDate: null }); }}
-                  className="mt-1 text-[11px] text-slate-400 hover:text-destructive transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </section>
-
-            {/* Assignee */}
-            <section>
-              <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                <User className="h-3 w-3" /> Assignee
-              </h3>
-              {canEdit ? (
-                <select
-                  value={assignedUserId}
-                  onChange={(e) => { const v = e.target.value; setAssignedUserId(v); save({ assignedUserId: v || null }); }}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-                >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {m.user.name ?? m.user.email}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-sm text-slate-700">
-                  {card.assignedUser ? (card.assignedUser.name ?? card.assignedUser.email) : "—"}
-                </p>
-              )}
-            </section>
-
-            {/* ── Labels ──────────────────────────────────────────────── */}
-            <section>
-              <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                <Tag className="h-3 w-3" /> Labels
-              </h3>
-
-              {/* Toggle list */}
-              {labels.length > 0 && (
-                <div className="space-y-0.5 mb-1">
-                  {labels.map((label) => {
-                    const active = activeLabels.has(label.id);
-                    const lc     = getLabelColor(label.color);
-                    return (
-                      <button
-                        key={label.id}
-                        disabled={!canEdit}
-                        onClick={() => handleLabelToggle(label.id)}
-                        className={[
-                          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
-                          active
-                            ? `${lc.subtle} ${lc.text}`
-                            : "hover:bg-slate-100 text-slate-600",
-                          canEdit ? "cursor-pointer" : "cursor-default",
-                        ].join(" ")}
-                      >
-                        {/* Color swatch */}
-                        <span className={`h-2.5 w-2.5 rounded-sm flex-shrink-0 ${lc.bg}`} />
-                        <span className="flex-1 truncate text-left">{label.name}</span>
-                        <Check
-                          className={`h-3 w-3 flex-shrink-0 transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Create label form */}
-              {canEdit && (
-                showCreate ? (
-                  <div className="mt-2 space-y-2 p-2 bg-white rounded-lg border border-slate-200">
-                    <input
-                      autoFocus
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter")  { e.preventDefault(); void handleCreateLabel(); }
-                        if (e.key === "Escape") { e.preventDefault(); cancelCreate(); }
-                      }}
-                      placeholder="Label name…"
-                      maxLength={30}
-                      className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-
-                    {/* Color grid: 4 × 2 */}
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {LABEL_COLORS.map((c) => (
-                        <button
-                          key={c.key}
-                          type="button"
-                          title={c.key}
-                          onClick={() => setNewColor(c.key)}
-                          className={[
-                            `w-6 h-6 rounded-md ${c.bg} transition-transform`,
-                            newColor === c.key
-                              ? "ring-2 ring-offset-1 ring-slate-600 scale-110"
-                              : "hover:scale-105 opacity-80 hover:opacity-100",
-                          ].join(" ")}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="flex gap-1.5 pt-0.5">
-                      <button
-                        onClick={() => void handleCreateLabel()}
-                        disabled={!newName.trim() || creating}
-                        className="flex-1 flex items-center justify-center gap-1 text-xs bg-primary text-white py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                      >
-                        {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : "Create"}
-                      </button>
-                      <button
-                        onClick={cancelCreate}
-                        className="text-xs text-slate-500 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowCreate(true)}
-                    className="mt-1 w-full flex items-center justify-center gap-1 text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100 py-1.5 rounded-md transition-colors"
-                  >
-                    <Plus className="h-3 w-3" /> New label
-                  </button>
-                )
-              )}
-
-              {/* Viewer: nothing if no labels assigned */}
-              {!canEdit && labels.length === 0 && (
-                <p className="text-xs text-slate-400 italic">No labels.</p>
               )}
             </section>
           </div>
