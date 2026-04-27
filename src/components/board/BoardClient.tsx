@@ -9,24 +9,34 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
-import { Users, Activity, UserPlus } from "lucide-react";
-import { SortableColumn }        from "@/components/column/SortableColumn";
-import { ColumnOverlay }         from "@/components/column/ColumnOverlay";
-import { AddColumnButton }       from "@/components/column/AddColumnButton";
-import { CardOverlay }           from "@/components/card/CardOverlay";
-import { CardModal }             from "@/components/card/CardModal";
-import { MembersDialog }         from "./MembersDialog";
-import { BoardActivityPanel }    from "./BoardActivityPanel";
-import { EditableBoardTitle }    from "./EditableBoardTitle";
-import { Button }                from "@/components/ui/button";
-import { calculateNewPosition }  from "@/lib/position";
-import { renameColumn, deleteColumn } from "@/lib/actions";
+import { Users, Activity, UserPlus, Settings, Trash2 } from "lucide-react";
+import { SortableColumn }             from "@/components/column/SortableColumn";
+import { ColumnOverlay }              from "@/components/column/ColumnOverlay";
+import { AddColumnButton }            from "@/components/column/AddColumnButton";
+import { CardOverlay }                from "@/components/card/CardOverlay";
+import { CardModal }                  from "@/components/card/CardModal";
+import { MembersDialog }              from "./MembersDialog";
+import { BoardActivityPanel }         from "./BoardActivityPanel";
+import { EditableBoardTitle }         from "./EditableBoardTitle";
+import { EditableBoardDescription }   from "./EditableBoardDescription";
+import { Button }                     from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+  AlertDialogMedia,
+} from "@/components/ui/alert-dialog";
+import { calculateNewPosition }       from "@/lib/position";
+import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription } from "@/lib/actions";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
 import type { Role } from "@/generated/prisma";
 
 interface BoardClientProps {
   boardId: string;
   boardTitle: string;
+  boardDescription: string | null;
   members: DndBoardMember[];
   labels: BoardLabel[];
   initialColumns: DndColumn[];
@@ -47,15 +57,16 @@ function findCardColumn(cardId: string, cols: DndColumn[]) {
   return cols.find((c) => c.cards.some((card) => card.id === cardId));
 }
 
-export function BoardClient({ boardId, boardTitle, members: initialMembers, labels, initialColumns, userRole }: BoardClientProps) {
-  const [columns,          setColumns]         = useState<DndColumn[]>(initialColumns);
-  const [members,          setMembers]         = useState<DndBoardMember[]>(initialMembers);
-  const [activeCard,       setActiveCard]      = useState<DndCard | null>(null);
-  const [activeColumn,     setActiveColumn]    = useState<DndColumn | null>(null);
-  const [selectedCardId,   setSelectedCardId]  = useState<string | null>(null);
-  const [showMembers,      setShowMembers]     = useState(false);
-  const [showActivity,     setShowActivity]    = useState(false);
-  const [syncing,          setSyncing]         = useState(false);
+export function BoardClient({ boardId, boardTitle, boardDescription, members: initialMembers, labels, initialColumns, userRole }: BoardClientProps) {
+  const [columns,            setColumns]           = useState<DndColumn[]>(initialColumns);
+  const [members,            setMembers]           = useState<DndBoardMember[]>(initialMembers);
+  const [activeCard,         setActiveCard]        = useState<DndCard | null>(null);
+  const [activeColumn,       setActiveColumn]      = useState<DndColumn | null>(null);
+  const [selectedCardId,     setSelectedCardId]    = useState<string | null>(null);
+  const [showMembers,        setShowMembers]       = useState(false);
+  const [showActivity,       setShowActivity]      = useState(false);
+  const [syncing,            setSyncing]           = useState(false);
+  const [showDeleteConfirm,  setShowDeleteConfirm] = useState(false);
   const preDragSnapshot   = useRef<DndColumn[]>(initialColumns);
   // Always-current ref so drag handlers read fresh state even if React hasn't
   // re-rendered since the last setColumns call (stale-closure guard).
@@ -121,6 +132,24 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
     setColumns((prev) => prev.filter((c) => c.id !== column.id));
     return true;
   }, []);
+
+  const handleDescriptionChanged = useCallback(async (newDescription: string | null): Promise<boolean> => {
+    setSyncing(true);
+    const result = await updateBoardDescription(boardId, newDescription);
+    setSyncing(false);
+    if (!result.success) {
+      toast.error(result.error ?? "Failed to update description");
+      return false;
+    }
+    return true;
+  }, [boardId]);
+
+  const handleDeleteBoard = useCallback(async () => {
+    setShowDeleteConfirm(false);
+    const result = await deleteBoardAction(boardId);
+    if (result?.error) toast.error(result.error ?? "Failed to delete board");
+    // On success deleteBoardAction redirects — we never reach this line
+  }, [boardId]);
 
   // ─── Derive selected card ─────────────────────────────────────────────────
   const selectedCard = selectedCardId
@@ -331,11 +360,23 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800">
       {/* Board header */}
-      <div className="flex items-center gap-3 px-5 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-        <EditableBoardTitle boardId={boardId} initialTitle={boardTitle} canEdit={canEdit} />
-        {syncing && <span className="ml-1 text-[11px] text-white/60 animate-pulse flex-shrink-0">Syncing…</span>}
+      <div className="flex items-center gap-3 px-5 py-2.5 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+        {/* Left: title + description */}
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <EditableBoardTitle boardId={boardId} initialTitle={boardTitle} canEdit={canEdit} />
+            {syncing && <span className="text-[11px] text-white/60 animate-pulse flex-shrink-0">Syncing…</span>}
+          </div>
+          <EditableBoardDescription
+            boardId={boardId}
+            initialDescription={boardDescription}
+            canEdit={canEdit}
+            onDescriptionChanged={handleDescriptionChanged}
+          />
+        </div>
 
-        <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+        {/* Right: actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Member avatars */}
           <div className="flex items-center">{members.slice(0, 6).map((m) => <MemberAvatar key={m.id} name={m.user.name} email={m.user.email} />)}</div>
 
@@ -362,6 +403,28 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
           <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-white/20 text-white">
             {userRole.toLowerCase()}
           </span>
+
+          {/* Settings — OWNER only */}
+          {isOwner && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="h-8 w-8 flex items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/20 transition-colors focus:outline-none"
+                aria-label="Board settings"
+              >
+                <Settings className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="bottom" align="end">
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete Board
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -385,6 +448,7 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
                     column={col}
                     boardId={boardId}
                     canEdit={canEdit}
+                    activeCardId={activeCard?.id}
                     onCardAdded={handleCardAdded}
                     onCardClick={handleCardClick}
                     onColumnRenamed={handleColumnRenamed}
@@ -432,6 +496,28 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
         isOwner={isOwner}
         onMembersChange={setMembers}
       />
+
+      {/* Delete board confirmation dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Delete this board?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{boardTitle}</strong> and all its columns and
+              cards. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleDeleteBoard}>
+              Delete Board
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

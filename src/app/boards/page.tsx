@@ -71,7 +71,7 @@ export default async function BoardsPage() {
                 {/* Color strip */}
                 <div className="h-1.5 -mx-5 -mt-5 mb-4 rounded-t-xl bg-gradient-to-r from-primary to-blue-400" />
 
-                <div className="flex items-start justify-between gap-2 mb-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
                   <h2 className="font-semibold text-slate-900 group-hover:text-primary transition-colors line-clamp-2 leading-snug">
                     {board.title}
                   </h2>
@@ -81,6 +81,14 @@ export default async function BoardsPage() {
                     {role.toLowerCase()}
                   </span>
                 </div>
+
+                {board.description ? (
+                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-3">
+                    {board.description}
+                  </p>
+                ) : (
+                  <div className="mb-3" />
+                )}
 
                 <div className="flex items-center gap-4 text-xs text-slate-500">
                   <span className="flex items-center gap-1.5">

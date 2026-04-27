@@ -76,6 +76,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
     <BoardClient
       boardId={board.id}
       boardTitle={board.title}
+      boardDescription={board.description}
       members={members}
       labels={labels}
       initialColumns={initialColumns}

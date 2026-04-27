@@ -31,6 +31,7 @@ interface ColumnProps {
   column: DndColumn;
   boardId: string;
   canEdit: boolean;
+  activeCardId?: string | null;
   onCardAdded:      (card: DndCard) => void;
   onCardClick:      (cardId: string) => void;
   onColumnRenamed:  (columnId: string, newTitle: string) => Promise<boolean>;
@@ -41,6 +42,7 @@ interface ColumnProps {
 
 export function Column({
   column, boardId, canEdit,
+  activeCardId,
   onCardAdded, onCardClick,
   onColumnRenamed, onColumnDeleted,
   dragHandleListeners, isDragging,
@@ -56,6 +58,13 @@ export function Column({
   });
 
   const cardIds = column.cards.map((c) => c.id);
+  // When a card is being dragged over an empty column its ID won't be in cardIds
+  // yet (state re-render is still pending). Including it here immediately lets
+  // SortableContext allocate placeholder space before the re-render arrives.
+  const sortableItems =
+    activeCardId && !cardIds.includes(activeCardId) && isOver
+      ? [...cardIds, activeCardId]
+      : cardIds;
 
   // ── Callbacks ──────────────────────────────────────────────────────────────
 
@@ -147,7 +156,7 @@ export function Column({
         </div>
 
         {/* ── Cards list ────────────────────────────────────────────────────── */}
-        <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
+        <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
           <div
             ref={setNodeRef}
             className={[

@@ -21,7 +21,7 @@ export function SortableCard({ card, canDrag, onCardClick }: SortableCardProps) 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.35 : 1,
+    opacity: isDragging ? 0 : 1,
     zIndex: isDragging ? 10 : undefined,
   };
 

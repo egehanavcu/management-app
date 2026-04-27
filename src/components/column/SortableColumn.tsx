@@ -9,6 +9,7 @@ interface SortableColumnProps {
   column: DndColumn;
   boardId: string;
   canEdit: boolean;
+  activeCardId?: string | null;
   onCardAdded:     (card: DndCard) => void;
   onCardClick:     (cardId: string) => void;
   onColumnRenamed: (columnId: string, newTitle: string) => Promise<boolean>;
@@ -17,6 +18,7 @@ interface SortableColumnProps {
 
 export function SortableColumn({
   column, boardId, canEdit,
+  activeCardId,
   onCardAdded, onCardClick,
   onColumnRenamed, onColumnDeleted,
 }: SortableColumnProps) {
@@ -38,6 +40,7 @@ export function SortableColumn({
         column={column}
         boardId={boardId}
         canEdit={canEdit}
+        activeCardId={activeCardId}
         onCardAdded={onCardAdded}
         onCardClick={onCardClick}
         onColumnRenamed={onColumnRenamed}

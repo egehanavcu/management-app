@@ -73,6 +73,32 @@ export async function createBoard(
   }
 }
 
+export async function updateBoardDescription(
+  boardId: string,
+  description: string | null
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  const membership = await prisma.boardMember.findUnique({
+    where: { boardId_userId: { boardId, userId: session.user.id } },
+  });
+  if (!membership || !hasMinRole(membership.role, "EDITOR"))
+    return { success: false, error: "Only editors and owners can edit the description" };
+
+  try {
+    await prisma.board.update({
+      where: { id: boardId },
+      data: { description: description?.trim() || null },
+    });
+    revalidatePath(`/boards/${boardId}`);
+    revalidatePath("/boards");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update description. Please try again." };
+  }
+}
+
 export async function deleteBoardAction(boardId: string): Promise<ActionState> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Unauthorized" };
