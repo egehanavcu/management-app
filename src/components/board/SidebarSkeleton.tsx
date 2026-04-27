@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 export function SidebarSkeleton() {
   return (
-    <aside className="w-60 flex-shrink-0 flex flex-col h-full bg-white border-r border-slate-200">
+    <aside className="hidden md:flex flex-col w-60 flex-shrink-0 h-full bg-white border-r border-slate-200">
       {/* Brand row */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-slate-200">
         <Skeleton className="w-7 h-7 rounded-lg" />

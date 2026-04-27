@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
-import { Users, Activity, UserPlus, Settings, Trash2 } from "lucide-react";
+import { Users, Activity, UserPlus, Settings, Trash2, Menu } from "lucide-react";
 import { SortableColumn }             from "@/components/column/SortableColumn";
 import { ColumnOverlay }              from "@/components/column/ColumnOverlay";
 import { AddColumnButton }            from "@/components/column/AddColumnButton";
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { calculateNewPosition }       from "@/lib/position";
 import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription, toggleCardLabel, createLabel, toggleCardAssignee } from "@/lib/actions";
+import { useMobileSidebar }           from "./MobileSidebarProvider";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
 import type { Role } from "@/generated/prisma";
 
@@ -80,9 +81,10 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   // drag type from the very first event, before any React state re-render.
   const activeDragTypeRef = useRef<"card" | "column" | null>(null);
 
-  const canEdit   = userRole === "OWNER" || userRole === "EDITOR";
-  const isOwner   = userRole === "OWNER";
-  const columnIds = columns.map((c) => c.id);
+  const canEdit              = userRole === "OWNER" || userRole === "EDITOR";
+  const isOwner              = userRole === "OWNER";
+  const columnIds            = columns.map((c) => c.id);
+  const { setOpen: openNav } = useMobileSidebar();
 
   // Current session user ID — find from members list
   // (the current user IS in the members list, we can identify by role match; use a safer approach)
@@ -440,24 +442,36 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800">
       {/* Board header */}
-      <div className="flex items-center gap-3 px-5 py-2.5 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+      <div className="flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2.5 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={() => openNav(true)}
+          className="flex md:hidden text-white/80 hover:text-white transition-colors flex-shrink-0 p-0.5"
+          aria-label="Open navigation"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
         {/* Left: title + description */}
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <EditableBoardTitle boardId={boardId} initialTitle={boardTitle} canEdit={canEdit} syncing={syncing} />
           </div>
-          <EditableBoardDescription
-            boardId={boardId}
-            initialDescription={boardDescription}
-            canEdit={canEdit}
-            onDescriptionChanged={handleDescriptionChanged}
-          />
+          {/* Description hidden on small screens to save header height */}
+          <div className="hidden sm:block">
+            <EditableBoardDescription
+              boardId={boardId}
+              initialDescription={boardDescription}
+              canEdit={canEdit}
+              onDescriptionChanged={handleDescriptionChanged}
+            />
+          </div>
         </div>
 
         {/* Right: actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Member avatars */}
-          <div className="flex items-center gap-x-1">
+        <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+          {/* Member avatars — hidden on mobile to save space */}
+          <div className="hidden md:flex items-center gap-x-1">
             {members.slice(0, 6).map((m) => (
               <MemberAvatar key={m.id} name={m.user.name} email={m.user.email} />
             ))}
@@ -483,7 +497,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
             <span className="text-xs font-medium hidden sm:inline">Activity</span>
           </Button>
 
-          <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-white/20 text-white">
+          <span className="hidden sm:inline text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-white/20 text-white">
             {userRole.toLowerCase()}
           </span>
 

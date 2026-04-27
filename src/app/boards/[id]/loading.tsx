@@ -117,33 +117,41 @@ export default function BoardLoading() {
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800">
       {/* ── Header skeleton ──────────────────────────────────────────────────
-          Exact match of BoardClient header:
-          flex items-center gap-4 px-5 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0
+          Responsive heights:
+            < 640px  → py-2.5 + h-8 buttons (tallest)  + py-2.5 = 52px
+            ≥ 640px  → py-2.5 + (h-7 + gap-0.5 + h-5)  + py-2.5 = 70px
+            ≥ 768px  → same 70px, avatars appear, hamburger disappears
       */}
-      <div className="flex items-center gap-3 px-5 py-2.5 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+      <div className="flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2.5 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+
+        {/* Hamburger ghost — mobile only (< md), h-6 w-6 = p-0.5 + Menu h-5 w-5 */}
+        <div className="flex md:hidden w-6 h-6 rounded bg-white/25 animate-pulse flex-shrink-0" />
+
         {/* Left: title + description — matches flex-1 min-w-0 flex flex-col gap-0.5 */}
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-          <div className="h-7 w-48 rounded-lg bg-white/25 animate-pulse" />
-          {/* Description ghost — h-5 matches the fixed height in EditableBoardDescription */}
-          <div className="h-5 w-64 rounded bg-white/15 animate-pulse" />
+          {/* Title ghost — h-7 = text-lg line-height (1.75rem). Narrower on mobile. */}
+          <div className="h-7 w-32 sm:w-48 rounded-lg bg-white/25 animate-pulse" />
+          {/* Description ghost — hidden sm:block mirrors EditableBoardDescription wrapper */}
+          <div className="hidden sm:block h-5 w-64 rounded bg-white/15 animate-pulse" />
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Member avatar stack — 3 spaced circles, matches gap-x-1 in real header */}
-          <div className="flex items-center gap-x-1">
+        {/* Right: actions — gap mirrors gap-1.5 md:gap-2 in live header */}
+        <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+          {/* Avatar group — hidden md:flex, 3 circles matching gap-x-1 */}
+          <div className="hidden md:flex items-center gap-x-1">
             {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-7 h-7 rounded-full bg-white/25 animate-pulse"
-              />
+              <div key={i} className="w-7 h-7 rounded-full bg-white/25 animate-pulse" />
             ))}
           </div>
-          {/* Members button ghost — h-8 matches Button size="sm" */}
-          <div className="h-8 w-[72px] rounded-md bg-white/20 animate-pulse" />
-          {/* Activity button ghost */}
-          <div className="h-8 w-[90px] rounded-md bg-white/20 animate-pulse" />
-          {/* Role badge ghost */}
-          <div className="h-6 w-14 rounded-full bg-white/20 animate-pulse" />
+
+          {/* Members button — icon-only width on mobile, label width on sm+ */}
+          <div className="h-8 w-8 sm:w-[72px] rounded-md bg-white/20 animate-pulse" />
+
+          {/* Activity button — icon-only on mobile, label width on sm+ */}
+          <div className="h-8 w-8 sm:w-[90px] rounded-md bg-white/20 animate-pulse" />
+
+          {/* Role badge — hidden sm:inline mirrors live header */}
+          <div className="hidden sm:block h-6 w-14 rounded-full bg-white/20 animate-pulse" />
         </div>
       </div>
 

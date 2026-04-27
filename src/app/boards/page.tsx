@@ -2,9 +2,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LayoutGrid, Plus, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LayoutGrid, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { MobileTopBar } from "@/components/board/MobileTopBar";
 
 const ROLE_COLORS: Record<string, string> = {
   OWNER: "bg-amber-100 text-amber-700",
@@ -29,7 +29,9 @@ export default async function BoardsPage() {
   });
 
   return (
-    <div className="flex-1 overflow-y-auto p-8">
+    <div className="flex-1 flex flex-col overflow-hidden">
+    <MobileTopBar />
+    <div className="flex-1 overflow-y-auto p-6 md:p-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -105,6 +107,7 @@ export default async function BoardsPage() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
