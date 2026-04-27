@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Calendar, AlignLeft, Tag, User, Clock, Loader2, Check, Plus } from "lucide-react";
+import { Calendar, AlignLeft, Tag, Users, Clock, Loader2, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
@@ -19,9 +19,10 @@ type Activity = {
   id: string;
   action: string;
   createdAt: string;
-  user: { name: string | null; email: string | null };
+  user:       { name: string | null; email: string | null };
   fromColumn: { title: string } | null;
   toColumn:   { title: string } | null;
+  targetUser: { name: string | null; email: string | null } | null;
 };
 
 interface CardModalProps {
@@ -35,17 +36,20 @@ interface CardModalProps {
   onCardUpdated: (card: DndCard) => void;
   onLabelToggled: (labelId: string, add: boolean) => Promise<boolean>;
   onLabelCreated: (name: string, color: string) => Promise<boolean>;
+  onAssigneeToggled: (userId: string, add: boolean) => Promise<boolean>;
 }
 
 export function CardModal({
   card, columnTitle, members, labels, canEdit,
-  onClose, onCardUpdated, onLabelToggled, onLabelCreated,
+  onClose, onCardUpdated, onLabelToggled, onLabelCreated, onAssigneeToggled,
 }: CardModalProps) {
-  const [title,          setTitle]          = useState(card.title);
-  const [description,    setDescription]    = useState(card.description ?? "");
-  const [dueDate,        setDueDate]        = useState(fmt(card.dueDate));
-  const [assignedUserId, setAssignedUserId] = useState(card.assignedUser?.id ?? "");
-  const [activeLabels,   setActiveLabels]   = useState<Set<string>>(
+  const [title,           setTitle]          = useState(card.title);
+  const [description,     setDescription]    = useState(card.description ?? "");
+  const [dueDate,         setDueDate]        = useState(fmt(card.dueDate));
+  const [activeAssignees, setActiveAssignees] = useState<Set<string>>(
+    new Set(card.assignees.map((a) => a.id))
+  );
+  const [activeLabels,    setActiveLabels]   = useState<Set<string>>(
     new Set(card.labels.map((l) => l.label.id))
   );
 
@@ -81,6 +85,16 @@ export function CardModal({
     },
     [card.id, onCardUpdated]
   );
+
+  async function handleAssigneeToggle(userId: string) {
+    if (!canEdit) return;
+    const add = !activeAssignees.has(userId);
+    setActiveAssignees((prev) => { const n = new Set(prev); add ? n.add(userId) : n.delete(userId); return n; });
+    const ok = await onAssigneeToggled(userId, add);
+    if (!ok) {
+      setActiveAssignees((prev) => { const n = new Set(prev); add ? n.delete(userId) : n.add(userId); return n; });
+    }
+  }
 
   async function handleLabelToggle(labelId: string) {
     if (!canEdit) return;
@@ -180,30 +194,57 @@ export function CardModal({
               </div>
             </div>
 
-            {/* Assignee */}
-            <div className="flex items-center gap-0 px-6 py-2.5">
-              <div className="w-28 flex items-center gap-1.5 flex-shrink-0">
-                <User className="h-3.5 w-3.5 text-slate-400" />
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Assignee</span>
+            {/* Assignees */}
+            <div className="flex items-start gap-0 px-6 py-2.5">
+              <div className="w-28 flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                <Users className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Assignees</span>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 {canEdit ? (
-                  <select
-                    value={assignedUserId}
-                    onChange={(e) => { const v = e.target.value; setAssignedUserId(v); save({ assignedUserId: v || null }); }}
-                    className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 w-full max-w-xs"
-                  >
-                    <option value="">Unassigned</option>
-                    {members.map((m) => (
-                      <option key={m.userId} value={m.userId}>
-                        {m.user.name ?? m.user.email}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-wrap gap-1.5">
+                    {members.map((m) => {
+                      const active = activeAssignees.has(m.userId);
+                      const label  = m.user.name ?? m.user.email ?? "?";
+                      const ini    = label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                      return (
+                        <button
+                          key={m.userId}
+                          onClick={() => handleAssigneeToggle(m.userId)}
+                          title={label}
+                          className={[
+                            "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all border",
+                            active
+                              ? "bg-primary/10 text-primary border-primary/20"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                          ].join(" ")}
+                        >
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${active ? "bg-primary text-white" : "bg-slate-200 text-slate-600"}`}>
+                            {ini}
+                          </div>
+                          <span className="max-w-[100px] truncate">{label}</span>
+                          {active && <Check className="h-3 w-3 flex-shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : card.assignees.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {card.assignees.map((a) => {
+                      const label = a.name ?? a.email ?? "?";
+                      const ini   = label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                      return (
+                        <span key={a.id} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          <div className="w-4 h-4 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                            {ini}
+                          </div>
+                          <span className="max-w-[100px] truncate">{label}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <span className="text-sm text-slate-700">
-                    {card.assignedUser ? (card.assignedUser.name ?? card.assignedUser.email) : "—"}
-                  </span>
+                  <span className="text-sm text-slate-400 italic">—</span>
                 )}
               </div>
             </div>
@@ -353,9 +394,14 @@ export function CardModal({
                     const when  = new Date(a.createdAt).toLocaleString("en-US", {
                       month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
                     });
+                    const target = a.targetUser?.name ?? a.targetUser?.email ?? "someone";
                     const desc =
                       a.action === "MOVED"
                         ? `moved this card${a.fromColumn ? ` from "${a.fromColumn.title}"` : ""}${a.toColumn ? ` to "${a.toColumn.title}"` : ""}`
+                        : a.action === "ASSIGNED"
+                        ? `assigned ${target} to this card`
+                        : a.action === "UNASSIGNED"
+                        ? `removed ${target} from this card`
                         : a.action.toLowerCase() + " this card";
                     return (
                       <li key={a.id} className="flex items-start gap-3">

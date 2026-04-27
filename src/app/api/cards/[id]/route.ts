@@ -33,10 +33,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       title: body.title,
       description: body.description,
       dueDate: body.dueDate !== undefined ? (body.dueDate ? new Date(body.dueDate) : null) : undefined,
-      assignedUserId: body.assignedUserId !== undefined ? body.assignedUserId : undefined,
     },
     include: {
-      assignedUser: { omit: { password: true } },
+      assignees: { include: { user: { omit: { password: true } } } },
       labels: { include: { label: true } },
     },
   });

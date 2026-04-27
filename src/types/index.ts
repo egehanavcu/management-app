@@ -7,6 +7,7 @@ import type {
   Activity,
   Label,
   CardLabel,
+  CardAssignee,
   Role,
   ActionType,
 } from "@/generated/prisma";
@@ -17,7 +18,7 @@ export type { Role, ActionType };
 
 // ─── Base entity types (direct from Prisma) ──────────────────────────────────
 
-export type { User, Board, BoardMember, Column, Card, Activity, Label, CardLabel };
+export type { User, Board, BoardMember, Column, Card, Activity, Label, CardLabel, CardAssignee };
 
 // ─── Safe public user (strips password) ──────────────────────────────────────
 
@@ -44,7 +45,7 @@ export type ColumnWithCards = Column & {
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 export type CardWithRelations = Card & {
-  assignedUser: PublicUser | null;
+  assignees: (CardAssignee & { user: PublicUser })[];
   labels: (CardLabel & { label: Label })[];
 };
 
@@ -88,7 +89,6 @@ export interface UpdateCardPayload {
   title?: string;
   description?: string;
   dueDate?: string | null;
-  assignedUserId?: string | null;
 }
 
 export interface MoveCardPayload {

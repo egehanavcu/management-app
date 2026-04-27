@@ -245,7 +245,7 @@ export async function createCard(
     revalidatePath(`/boards/${boardId}`);
     return {
       success: true,
-      card: { id: card.id, title: card.title, description: card.description, position: card.position, columnId: card.columnId, dueDate: card.dueDate, assignedUser: null, labels: [] },
+      card: { id: card.id, title: card.title, description: card.description, position: card.position, columnId: card.columnId, dueDate: card.dueDate, assignees: [], labels: [] },
     };
   } catch { return { error: "Failed to create card. Please try again." }; }
 }
@@ -254,7 +254,6 @@ export type UpdateCardInput = {
   title?: string;
   description?: string | null;
   dueDate?: string | null;
-  assignedUserId?: string | null;
 };
 
 export async function updateCard(
@@ -279,10 +278,9 @@ export async function updateCard(
         dueDate: data.dueDate !== undefined
           ? (data.dueDate ? new Date(data.dueDate) : null)
           : undefined,
-        assignedUserId: data.assignedUserId !== undefined ? data.assignedUserId : undefined,
       },
       include: {
-        assignedUser: { omit: { password: true } },
+        assignees: { include: { user: { omit: { password: true } } } },
         labels: { include: { label: true } },
       },
     });
@@ -296,13 +294,48 @@ export async function updateCard(
         position: updated.position,
         columnId: updated.columnId,
         dueDate: updated.dueDate,
-        assignedUser: updated.assignedUser
-          ? { id: updated.assignedUser.id, name: updated.assignedUser.name, email: updated.assignedUser.email }
-          : null,
+        assignees: updated.assignees.map((a) => ({ id: a.user.id, name: a.user.name, email: a.user.email })),
         labels: updated.labels.map((l) => ({ label: { id: l.label.id, name: l.label.name, color: l.label.color } })),
       },
     };
   } catch { return { success: false, error: "Failed to update card" }; }
+}
+
+export async function toggleCardAssignee(
+  cardId: string,
+  targetUserId: string,
+  add: boolean,
+  boardId: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+  const membership = await prisma.boardMember.findUnique({
+    where: { boardId_userId: { boardId, userId: session.user.id } },
+  });
+  if (!membership || !hasMinRole(membership.role, "EDITOR"))
+    return { success: false, error: "Forbidden" };
+  try {
+    await prisma.$transaction([
+      add
+        ? prisma.cardAssignee.upsert({
+            where: { cardId_userId: { cardId, userId: targetUserId } },
+            create: { cardId, userId: targetUserId },
+            update: {},
+          })
+        : prisma.cardAssignee.delete({
+            where: { cardId_userId: { cardId, userId: targetUserId } },
+          }),
+      prisma.activity.create({
+        data: {
+          action: add ? "ASSIGNED" : "UNASSIGNED",
+          cardId,
+          userId: session.user.id,
+          targetUserId,
+        },
+      }),
+    ]);
+    return { success: true };
+  } catch { return { success: false, error: "Failed to update assignee" }; }
 }
 
 export async function toggleCardLabel(

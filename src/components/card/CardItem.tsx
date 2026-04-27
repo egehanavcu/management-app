@@ -7,17 +7,20 @@ interface CardItemProps {
   onClick?: () => void;
 }
 
-export function CardItem({ card, onClick }: CardItemProps) {
-  const hasLabels   = card.labels.length > 0;
-  const hasAssignee = card.assignedUser !== null;
-  const hasDueDate  = card.dueDate !== null;
-  const hasDesc     = Boolean(card.description?.trim());
-  const isOverdue   = hasDueDate && new Date(card.dueDate!) < new Date();
+function initials(name: string | null, email: string | null) {
+  const label = name ?? email ?? "?";
+  return label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
 
-  const initials = card.assignedUser
-    ? (card.assignedUser.name ?? card.assignedUser.email ?? "?")
-        .split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
-    : "";
+export function CardItem({ card, onClick }: CardItemProps) {
+  const hasLabels    = card.labels.length > 0;
+  const hasAssignees = card.assignees.length > 0;
+  const hasDueDate   = card.dueDate !== null;
+  const hasDesc      = Boolean(card.description?.trim());
+  const isOverdue    = hasDueDate && new Date(card.dueDate!) < new Date();
+
+  const visibleAssignees = card.assignees.slice(0, 3);
+  const overflow         = card.assignees.length - 3;
 
   return (
     <div
@@ -27,7 +30,7 @@ export function CardItem({ card, onClick }: CardItemProps) {
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}
       className="bg-white rounded-lg shadow-sm px-3 py-2.5 border border-transparent hover:border-primary/20 hover:shadow-md transition-all duration-150 select-none cursor-pointer group"
     >
-      {/* Label colour strips — thin, bright, non-intrusive */}
+      {/* Label colour strips */}
       {hasLabels && (
         <div className="flex flex-wrap gap-1 mb-2">
           {card.labels.map(({ label }) => (
@@ -44,7 +47,7 @@ export function CardItem({ card, onClick }: CardItemProps) {
       <p className="text-sm text-slate-800 leading-snug font-medium">{card.title}</p>
 
       {/* Footer badges */}
-      {(hasDueDate || hasDesc || hasAssignee) && (
+      {(hasDueDate || hasDesc || hasAssignees) && (
         <div className="flex items-center justify-between mt-2 gap-2">
           <div className="flex items-center gap-1.5">
             {hasDueDate && (
@@ -64,12 +67,23 @@ export function CardItem({ card, onClick }: CardItemProps) {
             )}
           </div>
 
-          {hasAssignee && (
-            <div
-              title={card.assignedUser!.name ?? card.assignedUser!.email ?? "Assignee"}
-              className="w-6 h-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
-            >
-              {initials}
+          {/* Assignee avatar group — max 3 + overflow count */}
+          {hasAssignees && (
+            <div className="flex items-center gap-x-0.5 flex-shrink-0">
+              {visibleAssignees.map((a) => (
+                <div
+                  key={a.id}
+                  title={a.name ?? a.email ?? "Assignee"}
+                  className="w-5 h-5 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[9px] font-semibold"
+                >
+                  {initials(a.name, a.email)}
+                </div>
+              ))}
+              {overflow > 0 && (
+                <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[9px] font-semibold">
+                  +{overflow}
+                </div>
+              )}
             </div>
           )}
         </div>

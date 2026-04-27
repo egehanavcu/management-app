@@ -27,7 +27,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
             cards: {
               orderBy: { position: "asc" },
               include: {
-                assignedUser: { omit: { password: true } },
+                assignees: { include: { user: { omit: { password: true } } } },
                 labels: { include: { label: true } },
               },
             },
@@ -52,9 +52,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       position: card.position,
       columnId: card.columnId,
       dueDate: card.dueDate,
-      assignedUser: card.assignedUser
-        ? { id: card.assignedUser.id, name: card.assignedUser.name, email: card.assignedUser.email }
-        : null,
+      assignees: card.assignees.map((a) => ({ id: a.user.id, name: a.user.name, email: a.user.email })),
       labels: card.labels.map((cl) => ({
         label: { id: cl.label.id, name: cl.label.name, color: cl.label.color },
       })),

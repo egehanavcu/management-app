@@ -23,6 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       user:       { select: { name: true, email: true } },
       fromColumn: { select: { title: true } },
       toColumn:   { select: { title: true } },
+      targetUser: { select: { name: true, email: true } },
     },
   });
 

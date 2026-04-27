@@ -20,6 +20,8 @@ enum ActionType {
   CREATED
   UPDATED
   DELETED
+  ASSIGNED
+  UNASSIGNED
 }
 
 // ─── Auth (NextAuth v5 / @auth/prisma-adapter) ───────────────────────────────
@@ -34,11 +36,12 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts     Account[]
-  sessions     Session[]
-  boardMembers BoardMember[]
-  assignedCards Card[]     @relation("AssignedCards")
-  activities   Activity[]
+  accounts         Account[]
+  sessions         Session[]
+  boardMembers     BoardMember[]
+  assignedCards    CardAssignee[]
+  targetActivities Activity[]    @relation("ActivityTarget")
+  activities       Activity[]
 }
 
 model Account {
@@ -123,20 +126,29 @@ model Column {
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 model Card {
-  id             String    @id @default(cuid())
-  title          String
-  description    String?   @db.Text
-  position       Float
-  dueDate        DateTime?
-  columnId       String
-  assignedUserId String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  title       String
+  description String?   @db.Text
+  position    Float
+  dueDate     DateTime?
+  columnId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  column       Column      @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  assignedUser User?       @relation("AssignedCards", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  labels       CardLabel[]
-  activities   Activity[]
+  column     Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  assignees  CardAssignee[]
+  labels     CardLabel[]
+  activities Activity[]
+}
+
+model CardAssignee {
+  cardId String
+  userId String
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, userId])
 }
 
 // ─── Activity ─────────────────────────────────────────────────────────────────
@@ -148,12 +160,14 @@ model Activity {
   userId       String
   fromColumnId String?
   toColumnId   String?
+  targetUserId String?
   createdAt    DateTime   @default(now())
 
   card       Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
   user       User    @relation(fields: [userId], references: [id])
   fromColumn Column? @relation("FromColumn", fields: [fromColumnId], references: [id], onDelete: SetNull)
   toColumn   Column? @relation("ToColumn", fields: [toColumnId], references: [id], onDelete: SetNull)
+  targetUser User?   @relation("ActivityTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
 }
 
 // ─── Label ────────────────────────────────────────────────────────────────────

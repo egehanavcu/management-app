@@ -5,7 +5,7 @@ export type DndCard = {
   position: number;
   columnId: string;
   dueDate: Date | null;
-  assignedUser: { id: string; name: string | null; email: string | null } | null;
+  assignees: Array<{ id: string; name: string | null; email: string | null }>;
   labels: Array<{ label: { id: string; name: string; color: string } }>;
 };
 

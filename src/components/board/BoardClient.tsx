@@ -29,7 +29,7 @@ import {
   AlertDialogMedia,
 } from "@/components/ui/alert-dialog";
 import { calculateNewPosition }       from "@/lib/position";
-import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription, toggleCardLabel, createLabel } from "@/lib/actions";
+import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription, toggleCardLabel, createLabel, toggleCardAssignee } from "@/lib/actions";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
 import type { Role } from "@/generated/prisma";
 
@@ -170,6 +170,36 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
     }
     return true;
   }, [selectedCardId, boardId, labels]);
+
+  const handleAssigneeToggled = useCallback(async (targetUserId: string, add: boolean): Promise<boolean> => {
+    const cardId = selectedCardId;
+    if (!cardId) return false;
+
+    const apply = (a: boolean) =>
+      setColumns((prev) => prev.map((col) => ({
+        ...col,
+        cards: col.cards.map((card) => {
+          if (card.id !== cardId) return card;
+          if (a) {
+            const member = members.find((m) => m.userId === targetUserId);
+            if (!member) return card;
+            return { ...card, assignees: [...card.assignees, { id: targetUserId, name: member.user.name, email: member.user.email }] };
+          }
+          return { ...card, assignees: card.assignees.filter((a) => a.id !== targetUserId) };
+        }),
+      })));
+
+    apply(add);
+    setSyncing(true);
+    const result = await toggleCardAssignee(cardId, targetUserId, add, boardId);
+    setSyncing(false);
+    if (!result.success) {
+      apply(!add);
+      toast.error(result.error ?? "Failed to update assignee");
+      return false;
+    }
+    return true;
+  }, [selectedCardId, boardId, members]);
 
   const handleLabelCreated = useCallback(async (name: string, color: string): Promise<boolean> => {
     setSyncing(true);
@@ -539,6 +569,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
           onCardUpdated={handleCardUpdated}
           onLabelToggled={handleLabelToggled}
           onLabelCreated={handleLabelCreated}
+          onAssigneeToggled={handleAssigneeToggled}
         />
       )}
 

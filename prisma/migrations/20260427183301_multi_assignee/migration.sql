@@ -2,7 +2,7 @@
 CREATE TYPE "Role" AS ENUM ('OWNER', 'EDITOR', 'VIEWER');
 
 -- CreateEnum
-CREATE TYPE "ActionType" AS ENUM ('MOVED', 'CREATED', 'UPDATED', 'DELETED');
+CREATE TYPE "ActionType" AS ENUM ('MOVED', 'CREATED', 'UPDATED', 'DELETED', 'ASSIGNED', 'UNASSIGNED');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -95,11 +95,18 @@ CREATE TABLE "Card" (
     "position" DOUBLE PRECISION NOT NULL,
     "dueDate" TIMESTAMP(3),
     "columnId" TEXT NOT NULL,
-    "assignedUserId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Card_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CardAssignee" (
+    "cardId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+
+    CONSTRAINT "CardAssignee_pkey" PRIMARY KEY ("cardId","userId")
 );
 
 -- CreateTable
@@ -110,6 +117,7 @@ CREATE TABLE "Activity" (
     "userId" TEXT NOT NULL,
     "fromColumnId" TEXT,
     "toColumnId" TEXT,
+    "targetUserId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Activity_pkey" PRIMARY KEY ("id")
@@ -171,7 +179,10 @@ ALTER TABLE "Column" ADD CONSTRAINT "Column_boardId_fkey" FOREIGN KEY ("boardId"
 ALTER TABLE "Card" ADD CONSTRAINT "Card_columnId_fkey" FOREIGN KEY ("columnId") REFERENCES "Column"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Card" ADD CONSTRAINT "Card_assignedUserId_fkey" FOREIGN KEY ("assignedUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "CardAssignee" ADD CONSTRAINT "CardAssignee_cardId_fkey" FOREIGN KEY ("cardId") REFERENCES "Card"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CardAssignee" ADD CONSTRAINT "CardAssignee_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Activity" ADD CONSTRAINT "Activity_cardId_fkey" FOREIGN KEY ("cardId") REFERENCES "Card"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -184,6 +195,9 @@ ALTER TABLE "Activity" ADD CONSTRAINT "Activity_fromColumnId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "Activity" ADD CONSTRAINT "Activity_toColumnId_fkey" FOREIGN KEY ("toColumnId") REFERENCES "Column"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Activity" ADD CONSTRAINT "Activity_targetUserId_fkey" FOREIGN KEY ("targetUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Label" ADD CONSTRAINT "Label_boardId_fkey" FOREIGN KEY ("boardId") REFERENCES "Board"("id") ON DELETE CASCADE ON UPDATE CASCADE;
