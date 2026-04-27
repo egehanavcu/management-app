@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -147,17 +147,22 @@ function useIsDesktop() {
 function PanelContent({
   activities,
   loading,
+  refreshing,
   onClose,
 }: {
   activities: Activity[];
   loading: boolean;
+  refreshing: boolean;
   onClose: () => void;
 }) {
   return (
     <>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-shrink-0">
-        <h2 className="text-sm font-semibold text-slate-800">Board Activity</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-slate-800">Board Activity</h2>
+          {refreshing && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+        </div>
         <button
           onClick={onClose}
           className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
@@ -235,22 +240,36 @@ export function BoardActivityPanel({
   onClose: () => void;
   refreshKey?: number;
 }) {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading,    setLoading]    = useState(true);
+  const [activities,  setActivities]  = useState<Activity[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const hasLoadedRef  = useRef(false);
   const isDesktop = useIsDesktop();
+
+  // Reset "has loaded" when the panel is closed so it shows full loading on next open.
+  useEffect(() => {
+    if (!open) { hasLoadedRef.current = false; }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
+    // First open of this session → full blank loading state.
+    // Subsequent refreshes (refreshKey bump) → keep old activities visible,
+    // show only the small spinner in the header.
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     fetch(`/api/boards/${boardId}/activity`)
       .then((r) => r.json())
-      .then(setActivities)
+      .then((data) => { setActivities(data); hasLoadedRef.current = true; })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setRefreshing(false); });
   }, [boardId, open, refreshKey]);
 
   const content = (
-    <PanelContent activities={activities} loading={loading} onClose={onClose} />
+    <PanelContent activities={activities} loading={loading} refreshing={refreshing} onClose={onClose} />
   );
 
   // ── Desktop: absolute overlay, slides in from the right ────────────────────

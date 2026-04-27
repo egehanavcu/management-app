@@ -73,6 +73,17 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   const [syncing,            setSyncing]           = useState(false);
   const [showDeleteConfirm,  setShowDeleteConfirm] = useState(false);
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
+
+  // Debounced helper — prevents a burst of rapid card moves from triggering
+  // multiple panel refetches. The ref lets zero-dep callbacks (handleDragEnd)
+  // call the latest version without adding it to their dep arrays.
+  const activityRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bumpActivity = useCallback(() => {
+    if (activityRefreshTimer.current) clearTimeout(activityRefreshTimer.current);
+    activityRefreshTimer.current = setTimeout(() => setActivityRefreshKey((k) => k + 1), 800);
+  }, []);
+  const bumpActivityRef = useRef(bumpActivity);
+  bumpActivityRef.current = bumpActivity;
   const preDragSnapshot   = useRef<DndColumn[]>(initialColumns);
   // Always-current ref so drag handlers read fresh state even if React hasn't
   // re-rendered since the last setColumns call (stale-closure guard).
@@ -96,11 +107,13 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   // ─── Child callbacks ──────────────────────────────────────────────────────
   const handleCardAdded = useCallback((card: DndCard) => {
     setColumns((prev) => prev.map((col) => col.id === card.columnId ? { ...col, cards: [...col.cards, card] } : col));
-  }, []);
+    bumpActivity();
+  }, [bumpActivity]);
 
   const handleColumnAdded = useCallback((column: DndColumn) => {
     setColumns((prev) => [...prev, column]);
-  }, []);
+    bumpActivity();
+  }, [bumpActivity]);
 
   const handleCardUpdated = useCallback((updated: DndCard) => {
     setColumns((prev) =>
@@ -125,7 +138,8 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       prev.map((col) => ({ ...col, cards: col.cards.filter((c) => c.id !== cardId) }))
     );
     setSelectedCardId(null);
-  }, [selectedCardId, boardId]);
+    bumpActivity();
+  }, [selectedCardId, boardId, bumpActivity]);
 
   const handleCardClick = useCallback((cardId: string) => {
     setSelectedCardId(cardId);
@@ -142,8 +156,9 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       toast.error(result.error ?? "Failed to rename column");
       return false;
     }
+    bumpActivity();
     return true;
-  }, [columns]);
+  }, [columns, bumpActivity]);
 
   // Non-optimistic delete: wait for server confirmation before removing from state.
   // The Column component shows a "Deleting…" overlay while in flight.
@@ -154,8 +169,9 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       return false;
     }
     setColumns((prev) => prev.filter((c) => c.id !== column.id));
+    bumpActivity();
     return true;
-  }, []);
+  }, [bumpActivity]);
 
   const handleLabelToggled = useCallback(async (labelId: string, add: boolean): Promise<boolean> => {
     // Capture the card ID synchronously — selectedCardId could change while awaiting.
@@ -188,8 +204,9 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       toast.error(result.error ?? "Failed to update label");
       return false;
     }
+    bumpActivity();
     return true;
-  }, [selectedCardId, boardId, labels]);
+  }, [selectedCardId, boardId, labels, bumpActivity]);
 
   const handleAssigneeToggled = useCallback(async (targetUserId: string, add: boolean): Promise<boolean> => {
     const cardId = selectedCardId;
@@ -218,8 +235,9 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       toast.error(result.error ?? "Failed to update assignee");
       return false;
     }
+    bumpActivity();
     return true;
-  }, [selectedCardId, boardId, members]);
+  }, [selectedCardId, boardId, members, bumpActivity]);
 
   const handleLabelCreated = useCallback(async (name: string, color: string): Promise<boolean> => {
     setSyncing(true);
@@ -241,9 +259,9 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       toast.error(result.error ?? "Failed to update description");
       return false;
     }
-    setActivityRefreshKey((k) => k + 1);
+    bumpActivity();
     return true;
-  }, [boardId]);
+  }, [boardId, bumpActivity]);
 
   const handleDeleteBoard = useCallback(async () => {
     setShowDeleteConfirm(false);
@@ -388,7 +406,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ position: newPosition }),
       })
-        .then((r) => { if (!r.ok) throw new Error(); })
+        .then((r) => { if (!r.ok) throw new Error(); bumpActivityRef.current(); })
         .catch(() => { setColumns(snapshot); toast.error("Couldn't save column position — changes reverted."); })
         .finally(() => setSyncing(false));
       return;
@@ -427,7 +445,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newColumnId: targetColumnId, newPosition }),
       })
-        .then((r) => { if (!r.ok) throw new Error(); })
+        .then((r) => { if (!r.ok) throw new Error(); bumpActivityRef.current(); })
         .catch(() => { setColumns(snapshot); toast.error("Couldn't save card position — changes reverted."); })
         .finally(() => setSyncing(false));
       return;
@@ -462,7 +480,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ newColumnId: finalCol.id, newPosition }),
     })
-      .then((r) => { if (!r.ok) throw new Error(); })
+      .then((r) => { if (!r.ok) throw new Error(); bumpActivityRef.current(); })
       .catch(() => { setColumns(snapshot); toast.error("Couldn't save card position — changes reverted."); })
       .finally(() => setSyncing(false));
   }, []);
@@ -495,7 +513,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
               initialTitle={boardTitle}
               canEdit={canEdit}
               syncing={syncing}
-              onSaved={() => setActivityRefreshKey((k) => k + 1)}
+              onSaved={bumpActivity}
             />
           </div>
           {/* Description hidden on small screens to save header height */}
