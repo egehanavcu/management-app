@@ -24,19 +24,22 @@ interface MembersDialogProps {
   initialMembers: DndBoardMember[];
   isOwner: boolean;
   onMembersChange: (members: DndBoardMember[]) => void;
+  onSyncChange: (syncing: boolean) => void;
 }
 
 export function MembersDialog({
-  open, onClose, boardId, currentUserId, initialMembers, isOwner, onMembersChange,
+  open, onClose, boardId, currentUserId, initialMembers, isOwner,
+  onMembersChange, onSyncChange,
 }: MembersDialogProps) {
-  const [members,    setMembers]    = useState<DndBoardMember[]>(initialMembers);
+  const [members,     setMembers]     = useState<DndBoardMember[]>(initialMembers);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole,  setInviteRole]  = useState<"EDITOR" | "VIEWER">("EDITOR");
   const [isPending,   startTransition] = useTransition();
-  const [inviting,    setInviting]   = useState(false);
+  const [inviting,    setInviting]    = useState(false);
 
   useEffect(() => { if (open) setMembers(initialMembers); }, [open, initialMembers]);
 
+  // ── Invite ────────────────────────────────────────────────────────────────
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
@@ -52,40 +55,62 @@ export function MembersDialog({
       toast.error(d.error ?? "Failed to invite member");
       return;
     }
-    const newMember = await res.json();
+    const m = await res.json();
     const updated = [
       ...members,
-      { id: newMember.id, userId: newMember.user.id, role: newMember.role, user: { name: newMember.user.name, email: newMember.user.email } },
+      { id: m.id, userId: m.user.id, role: m.role, user: { name: m.user.name, email: m.user.email } },
     ];
     setMembers(updated);
     onMembersChange(updated);
     setInviteEmail("");
-    toast.success("Member invited successfully");
+    toast.success("Member invited");
   }
 
-  function handleRoleChange(userId: string, role: Role) {
+  // ── Role change — optimistic ──────────────────────────────────────────────
+  function handleRoleChange(userId: string, newRole: Role) {
+    const prev    = members;
+    const updated = members.map((m) => m.userId === userId ? { ...m, role: newRole } : m);
+    setMembers(updated);
+    onMembersChange(updated);
+
     startTransition(async () => {
-      const res = await fetch(`/api/boards/${boardId}/members/${userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      });
-      if (!res.ok) { toast.error("Failed to change role"); return; }
-      const updated = members.map((m) => (m.userId === userId ? { ...m, role } : m));
-      setMembers(updated);
-      onMembersChange(updated);
-      toast.success("Role updated");
+      onSyncChange(true);
+      try {
+        const res = await fetch(`/api/boards/${boardId}/members/${userId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: newRole }),
+        });
+        if (!res.ok) {
+          toast.error("Failed to change role");
+          setMembers(prev);
+          onMembersChange(prev);
+        }
+      } finally {
+        onSyncChange(false);
+      }
     });
   }
 
+  // ── Remove — optimistic ───────────────────────────────────────────────────
   function handleRemove(userId: string) {
+    const prev    = members;
+    const updated = members.filter((m) => m.userId !== userId);
+    setMembers(updated);
+    onMembersChange(updated);
+
     startTransition(async () => {
-      const res = await fetch(`/api/boards/${boardId}/members/${userId}`, { method: "DELETE" });
-      if (!res.ok) { toast.error("Failed to remove member"); return; }
-      const updated = members.filter((m) => m.userId !== userId);
-      setMembers(updated);
-      onMembersChange(updated);
-      toast.success("Member removed");
+      onSyncChange(true);
+      try {
+        const res = await fetch(`/api/boards/${boardId}/members/${userId}`, { method: "DELETE" });
+        if (!res.ok) {
+          toast.error("Failed to remove member");
+          setMembers(prev);
+          onMembersChange(prev);
+        }
+      } finally {
+        onSyncChange(false);
+      }
     });
   }
 
@@ -114,19 +139,24 @@ export function MembersDialog({
               </div>
               {isOwner && m.userId !== currentUserId ? (
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <select
-                    value={m.role}
-                    onChange={(e) => handleRoleChange(m.userId, e.target.value as Role)}
-                    disabled={isPending}
-                    className="text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
-                  >
-                    <option value="EDITOR">Editor</option>
-                    <option value="VIEWER">Viewer</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={m.role}
+                      onChange={(e) => handleRoleChange(m.userId, e.target.value as Role)}
+                      disabled={isPending}
+                      className={`text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none transition-opacity ${isPending ? "opacity-50" : ""}`}
+                    >
+                      <option value="EDITOR">Editor</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                    {isPending && (
+                      <Loader2 className="absolute right-5 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-slate-400 pointer-events-none" />
+                    )}
+                  </div>
                   <button
                     onClick={() => handleRemove(m.userId)}
                     disabled={isPending}
-                    className="p-1 text-slate-400 hover:text-destructive transition-colors"
+                    className="p-1 text-slate-400 hover:text-destructive disabled:opacity-40 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

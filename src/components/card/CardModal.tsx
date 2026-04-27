@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Calendar, AlignLeft, Tag, User, Clock, Loader2, Check, Plus } from "lucide-react";
+import { Calendar, AlignLeft, Tag, User, Clock, Loader2, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -139,10 +139,8 @@ export function CardModal({
               <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
             )}
           </div>
-          {saving && <Loader2 className="h-4 w-4 text-slate-400 animate-spin flex-shrink-0 mt-1" />}
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 flex-shrink-0">
-            <X className="h-4 w-4" />
-          </button>
+          {/* Save spinner — DialogContent renders the close button itself */}
+          {saving && <Loader2 className="h-4 w-4 text-slate-400 animate-spin flex-shrink-0 mt-1 mr-6" />}
         </div>
 
         {/* ── Body ──────────────────────────────────────────────────────── */}

@@ -44,10 +44,13 @@ interface BoardClientProps {
 }
 
 function MemberAvatar({ name, email }: { name: string | null; email: string | null }) {
-  const label = name ?? email ?? "?";
+  const label   = name ?? email ?? "?";
   const initials = label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   return (
-    <div title={label} className="w-7 h-7 rounded-full bg-white/30 text-white flex items-center justify-center text-[11px] font-semibold border-2 border-white/40 -ml-1.5 first:ml-0">
+    <div
+      title={label}
+      className="w-7 h-7 rounded-full bg-white/30 text-white flex items-center justify-center text-[11px] font-semibold transition-transform duration-200 hover:-translate-y-0.5"
+    >
       {initials}
     </div>
   );
@@ -425,7 +428,11 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
         {/* Right: actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Member avatars */}
-          <div className="flex items-center">{members.slice(0, 6).map((m) => <MemberAvatar key={m.id} name={m.user.name} email={m.user.email} />)}</div>
+          <div className="flex items-center gap-x-1">
+            {members.slice(0, 6).map((m) => (
+              <MemberAvatar key={m.id} name={m.user.name} email={m.user.email} />
+            ))}
+          </div>
 
           {/* Members button */}
           <Button
@@ -544,6 +551,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
         initialMembers={members}
         isOwner={isOwner}
         onMembersChange={setMembers}
+        onSyncChange={setSyncing}
       />
 
       {/* Delete board confirmation dialog */}
