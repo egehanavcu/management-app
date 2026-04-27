@@ -61,6 +61,9 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
   // re-rendered since the last setColumns call (stale-closure guard).
   const latestColumnsRef  = useRef<DndColumn[]>(columns);
   latestColumnsRef.current = columns;
+  // Set synchronously in handleDragStart so collision detection knows the active
+  // drag type from the very first event, before any React state re-render.
+  const activeDragTypeRef = useRef<"card" | "column" | null>(null);
 
   const canEdit   = userRole === "OWNER" || userRole === "EDITOR";
   const isOwner   = userRole === "OWNER";
@@ -135,25 +138,40 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
   );
 
   // ─── Collision detection ─────────────────────────────────────────────────
-  // pointerWithin checks whether the pointer is *inside* a droppable rect —
-  // this correctly detects empty columns regardless of their height.
-  // When pointer is over a card we prefer the card over the column background.
+  // Uses activeDragTypeRef (set synchronously in handleDragStart) so the correct
+  // path is taken from the very first event, before React re-renders with the new
+  // activeColumn state.
   const collisionDetection: CollisionDetection = useCallback((args) => {
-    if (activeColumn) return closestCorners(args);
+    const colIds = latestColumnsRef.current.map((c) => c.id);
 
+    if (activeDragTypeRef.current === "column") {
+      // Restrict candidates to column-level droppables only.
+      // Without this, cards inside a dense target column win the closest-corner
+      // calculation and the column never swaps with its neighbour.
+      return closestCorners({
+        ...args,
+        droppableContainers: args.droppableContainers.filter(
+          ({ id }) => colIds.includes(String(id))
+        ),
+      });
+    }
+
+    // Card drag: pointerWithin reliably detects empty column droppables.
+    // Prefer a card collision over the column background when both are hit.
     const pointerCollisions = pointerWithin(args);
     if (pointerCollisions.length > 0) {
-      const cardCollision = pointerCollisions.find(({ id }) => !columnIds.includes(String(id)));
+      const cardCollision = pointerCollisions.find(({ id }) => !colIds.includes(String(id)));
       return cardCollision ? [cardCollision] : pointerCollisions;
     }
 
     return closestCorners(args);
-  }, [activeColumn, columnIds]);
+  }, []);
 
   // ─── Drag start ───────────────────────────────────────────────────────────
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
-    preDragSnapshot.current = latestColumnsRef.current;
+    preDragSnapshot.current   = latestColumnsRef.current;
     const data = active.data.current as CardDragData | ColumnDragData | undefined;
+    activeDragTypeRef.current = data?.type ?? null;   // synchronous — collision detection reads this immediately
     if (data?.type === "card")   { setActiveCard(data.card);     setActiveColumn(null); }
     if (data?.type === "column") { setActiveColumn(data.column); setActiveCard(null); }
   }, []);
@@ -214,6 +232,7 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
     const activeId   = String(active.id);
     setActiveCard(null);
     setActiveColumn(null);
+    activeDragTypeRef.current = null;
 
     if (!over) { setColumns(snapshot); return; }
 
@@ -303,7 +322,9 @@ export function BoardClient({ boardId, boardTitle, members: initialMembers, labe
   }, []);
 
   const handleDragCancel = useCallback(() => {
-    setActiveCard(null); setActiveColumn(null); setColumns(preDragSnapshot.current);
+    setActiveCard(null); setActiveColumn(null);
+    activeDragTypeRef.current = null;
+    setColumns(preDragSnapshot.current);
   }, []);
 
   // ─── Render ───────────────────────────────────────────────────────────────
