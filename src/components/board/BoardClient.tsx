@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import {
-  DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, closestCorners, pointerWithin,
   type DragStartEvent, type DragOverEvent, type DragEndEvent,
   type CollisionDetection,
@@ -260,8 +260,11 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
 
   // ─── Sensors ─────────────────────────────────────────────────────────────
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } }),
+    // Mouse: start after 8px movement so accidental micro-moves don't trigger
+    useSensor(MouseSensor,    { activationConstraint: { distance: 8 } }),
+    // Touch: require a 250ms long-press; tolerance:5 ignores minor finger tremor
+    // without cancelling the press
+    useSensor(TouchSensor,    { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -302,6 +305,8 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
     activeDragTypeRef.current = data?.type ?? null;   // synchronous — collision detection reads this immediately
     if (data?.type === "card")   { setActiveCard(data.card);     setActiveColumn(null); }
     if (data?.type === "column") { setActiveColumn(data.column); setActiveCard(null); }
+    // Subtle haptic pulse on touch devices to confirm the long-press registered
+    window.navigator.vibrate?.(10);
   }, []);
 
   // ─── Drag over ────────────────────────────────────────────────────────────
@@ -564,7 +569,10 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="flex-1 overflow-x-auto overflow-y-hidden">
+          <div
+            className="flex-1 overflow-x-auto overflow-y-hidden"
+            style={{ touchAction: activeCard || activeColumn ? "none" : "pan-x" }}
+          >
             <div className="flex gap-3 p-4 h-full items-start min-w-max">
               <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
                 {columns.map((col) => (

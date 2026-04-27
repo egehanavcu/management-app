@@ -24,6 +24,9 @@ export function SortableCard({ card, canDrag, onCardClick }: SortableCardProps) 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
+    // Prevents the browser from claiming the touch for scrolling or pull-to-refresh
+    // before the TouchSensor's 250ms long-press window has elapsed.
+    touchAction: "none",
   };
 
   return (
