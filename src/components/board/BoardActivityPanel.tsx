@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { X, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Activity = {
   id: string;
@@ -15,6 +19,8 @@ type Activity = {
   targetUser: { name: string | null; email: string | null } | null;
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function parseCardTitle(a: Activity): string {
   if (a.card?.title) return a.card.title;
   if (a.metadata) {
@@ -24,8 +30,8 @@ function parseCardTitle(a: Activity): string {
 }
 
 function describeActivity(a: Activity): string {
-  const cardTitle  = parseCardTitle(a);
-  const target     = a.targetUser?.name ?? a.targetUser?.email ?? "someone";
+  const cardTitle = parseCardTitle(a);
+  const target    = a.targetUser?.name ?? a.targetUser?.email ?? "someone";
 
   switch (a.action) {
     case "CREATED":
@@ -99,34 +105,56 @@ function describeActivity(a: Activity): string {
   }
 }
 
-export function BoardActivityPanel({
-  boardId,
+// ── Animation variants ────────────────────────────────────────────────────────
+
+const listVariants = {
+  visible: { transition: { staggerChildren: 0.04 } },
+};
+
+const itemVariants = {
+  hidden:  { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: "easeOut" } },
+};
+
+// ── useIsDesktop ──────────────────────────────────────────────────────────────
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
+
+// ── Shared panel content ──────────────────────────────────────────────────────
+
+function PanelContent({
+  activities,
+  loading,
   onClose,
 }: {
-  boardId: string;
+  activities: Activity[];
+  loading: boolean;
   onClose: () => void;
 }) {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading,    setLoading]    = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/boards/${boardId}/activity`)
-      .then((r) => r.json())
-      .then(setActivities)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [boardId]);
-
   return (
-    <div className="w-80 flex-shrink-0 bg-white/95 backdrop-blur-sm border-l border-white/20 flex flex-col h-full shadow-2xl">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-shrink-0">
         <h2 className="text-sm font-semibold text-slate-800">Board Activity</h2>
-        <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600">
+        <button
+          onClick={onClose}
+          className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
 
+      {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-slate-400 pt-4">
@@ -135,29 +163,111 @@ export function BoardActivityPanel({
         ) : activities.length === 0 ? (
           <p className="text-sm text-slate-400 italic pt-4">No activity recorded yet.</p>
         ) : (
-          <ul className="space-y-4">
-            {activities.map((a) => {
-              const actor = a.user.name ?? a.user.email ?? "Someone";
-              const when  = new Date(a.createdAt).toLocaleString("en-US", {
-                month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-              });
-              return (
-                <li key={a.id} className="flex gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">
-                    {actor.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="text-sm leading-snug">
-                    <span className="font-medium text-slate-800">{actor}</span>{" "}
-                    <span className="text-slate-500">{describeActivity(a)}</span>
-                    <br />
-                    <span className="text-[11px] text-slate-400">{when}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <motion.ul
+            variants={listVariants}
+            initial="hidden"
+            animate="visible"
+            className="space-y-4"
+          >
+            <AnimatePresence initial={false}>
+              {activities.map((a) => {
+                const actor = a.user.name ?? a.user.email ?? "Someone";
+                const when  = new Date(a.createdAt).toLocaleString("en-US", {
+                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                });
+                return (
+                  <motion.li
+                    key={a.id}
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
+                    layout="position"
+                    className="flex gap-2.5"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">
+                      {actor.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="text-sm leading-snug min-w-0">
+                      <span className="font-medium text-slate-800">{actor}</span>{" "}
+                      <span className="text-slate-500">{describeActivity(a)}</span>
+                      <br />
+                      <span className="text-[11px] text-slate-400">{when}</span>
+                    </div>
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
+          </motion.ul>
         )}
       </div>
-    </div>
+    </>
+  );
+}
+
+// ── Public component ──────────────────────────────────────────────────────────
+
+export function BoardActivityPanel({
+  boardId,
+  open,
+  onClose,
+}: {
+  boardId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const isDesktop = useIsDesktop();
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    fetch(`/api/boards/${boardId}/activity`)
+      .then((r) => r.json())
+      .then(setActivities)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [boardId, open]);
+
+  const content = (
+    <PanelContent activities={activities} loading={loading} onClose={onClose} />
+  );
+
+  // ── Desktop: absolute overlay, slides in from the right ────────────────────
+  // position:absolute so it overlays the board without claiming flex space —
+  // this prevents the layout shift / "blue block" that transform alone causes.
+  if (isDesktop) {
+    return (
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0,      opacity: 1 }}
+            exit={{   x: "100%", opacity: 0 }}
+            transition={{ type: "spring", damping: 28, stiffness: 280 }}
+            className="absolute right-0 top-0 bottom-0 w-80 z-20 bg-white/95 backdrop-blur-sm border-l border-white/20 flex flex-col shadow-2xl"
+          >
+            {content}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  // ── Mobile: Sheet sliding from the right ────────────────────────────────────
+  // showCloseButton={false} suppresses SheetContent's built-in X icon so
+  // only the one inside PanelContent is visible.
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="w-full sm:max-w-sm p-0 flex flex-col gap-0 bg-white"
+      >
+        <SheetTitle className="sr-only">Board Activity</SheetTitle>
+        {content}
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -554,7 +554,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       </div>
 
       {/* Main content + optional activity panel */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Columns */}
         <DndContext
           sensors={sensors}
@@ -591,10 +591,12 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
           </DragOverlay>
         </DndContext>
 
-        {/* Board activity panel */}
-        {showActivity && (
-          <BoardActivityPanel boardId={boardId} onClose={() => setShowActivity(false)} />
-        )}
+        {/* Board activity panel — always mounted so Sheet exit animation plays on mobile */}
+        <BoardActivityPanel
+          boardId={boardId}
+          open={showActivity}
+          onClose={() => setShowActivity(false)}
+        />
       </div>
 
       {/* Card detail modal */}
