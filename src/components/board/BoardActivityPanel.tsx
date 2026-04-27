@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -107,11 +107,11 @@ function describeActivity(a: Activity): string {
 
 // ── Animation variants ────────────────────────────────────────────────────────
 
-const listVariants = {
+const listVariants: Variants = {
   visible: { transition: { staggerChildren: 0.04 } },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden:  { opacity: 0, y: 10 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: "easeOut" } },
 };

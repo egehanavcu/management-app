@@ -26,7 +26,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           cards: {
             orderBy: { position: "asc" },
             include: {
-              assignedUser: { omit: { password: true } },
               labels: { include: { label: true } },
             },
           },

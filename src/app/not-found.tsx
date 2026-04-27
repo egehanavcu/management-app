@@ -30,9 +30,14 @@ export default function NotFound() {
         </p>
 
         {/* CTA */}
-        <Button asChild size="lg" className="bg-white text-blue-700 hover:bg-white/90 font-semibold shadow-lg">
-          <Link href="/boards">Back to Dashboard</Link>
-        </Button>
+        <Link href="/boards" className="w-full sm:w-auto">
+          <Button
+            size="lg"
+            className="w-full bg-white text-blue-700 hover:bg-white/90 font-semibold shadow-lg"
+          >
+            Back to Dashboard
+          </Button>
+        </Link>
       </div>
     </div>
   );

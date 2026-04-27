@@ -51,14 +51,15 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
             >
               Try again
             </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="w-full sm:w-auto text-slate-600 font-semibold"
-            >
-              <Link href="/boards">Back to Dashboard</Link>
-            </Button>
+            <Link href="/boards" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full text-slate-600 font-semibold"
+              >
+                Back to Dashboard
+              </Button>
+            </Link>
           </div>
 
           {/* Error digest badge */}
