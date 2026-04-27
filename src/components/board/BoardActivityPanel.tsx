@@ -88,6 +88,18 @@ function describeActivity(a: Activity): string {
       }
       return "renamed a column";
     }
+    case "BOARD_UPDATE": {
+      if (a.metadata) {
+        try {
+          const m = JSON.parse(a.metadata);
+          if (m.type === "title" && m.oldTitle && m.newTitle)
+            return `renamed the board from "${m.oldTitle}" to "${m.newTitle}"`;
+          if (m.type === "description")
+            return "updated the board description";
+        } catch { /* */ }
+      }
+      return "updated the board";
+    }
     case "COLUMN_CREATE": {
       if (a.metadata) {
         try { const { columnTitle } = JSON.parse(a.metadata); return `created column "${columnTitle}"`; } catch { /* */ }
@@ -185,7 +197,12 @@ function PanelContent({
                     layout="position"
                     className="flex gap-2.5"
                   >
-                    <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">
+                    <div className={[
+                      "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5",
+                      a.action === "BOARD_UPDATE"
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "bg-primary/15 text-primary",
+                    ].join(" ")}>
                       {actor.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="text-sm leading-snug min-w-0">
@@ -211,10 +228,12 @@ export function BoardActivityPanel({
   boardId,
   open,
   onClose,
+  refreshKey = 0,
 }: {
   boardId: string;
   open: boolean;
   onClose: () => void;
+  refreshKey?: number;
 }) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -228,7 +247,7 @@ export function BoardActivityPanel({
       .then(setActivities)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [boardId, open]);
+  }, [boardId, open, refreshKey]);
 
   const content = (
     <PanelContent activities={activities} loading={loading} onClose={onClose} />

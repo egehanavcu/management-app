@@ -11,9 +11,10 @@ interface EditableBoardTitleProps {
   initialTitle: string;
   canEdit: boolean;
   syncing?: boolean;
+  onSaved?: () => void;
 }
 
-export function EditableBoardTitle({ boardId, initialTitle, canEdit, syncing = false }: EditableBoardTitleProps) {
+export function EditableBoardTitle({ boardId, initialTitle, canEdit, syncing = false, onSaved }: EditableBoardTitleProps) {
   const router    = useRouter();
   const inputRef  = useRef<HTMLInputElement>(null);
 
@@ -68,8 +69,9 @@ export function EditableBoardTitle({ boardId, initialTitle, canEdit, syncing = f
     } else {
       // Refresh RSC tree so the sidebar (a Server Component) gets the updated name
       router.refresh();
+      onSaved?.();
     }
-  }, [boardId, draft, title, cancel, router]);
+  }, [boardId, draft, title, cancel, router, onSaved]);
 
   // ── Viewer / non-editable ──────────────────────────────────────────────────
   if (!canEdit) {

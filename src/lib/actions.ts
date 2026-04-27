@@ -23,15 +23,29 @@ export async function updateBoardTitle(
   const trimmed = title.trim();
   if (!trimmed) return { success: false, error: "Board title cannot be empty" };
 
-  const membership = await prisma.boardMember.findUnique({
-    where: { boardId_userId: { boardId, userId: session.user.id } },
-  });
+  const [membership, board] = await Promise.all([
+    prisma.boardMember.findUnique({
+      where: { boardId_userId: { boardId, userId: session.user.id } },
+    }),
+    prisma.board.findUnique({ where: { id: boardId }, select: { title: true } }),
+  ]);
   if (!membership || !hasMinRole(membership.role, "EDITOR"))
     return { success: false, error: "Only editors and owners can rename boards" };
+  if (!board) return { success: false, error: "Board not found" };
+  if (trimmed === board.title) return { success: true }; // no-op, nothing changed
 
   try {
-    await prisma.board.update({ where: { id: boardId }, data: { title: trimmed } });
-    // Invalidate the board page AND the boards list (sidebar) so both reflect the new name.
+    await prisma.$transaction([
+      prisma.board.update({ where: { id: boardId }, data: { title: trimmed } }),
+      prisma.activity.create({
+        data: {
+          action: "BOARD_UPDATE",
+          boardId,
+          userId: session.user.id,
+          metadata: JSON.stringify({ type: "title", oldTitle: board.title, newTitle: trimmed }),
+        },
+      }),
+    ]);
     revalidatePath(`/boards/${boardId}`);
     revalidatePath("/boards");
     return { success: true };
@@ -80,16 +94,32 @@ export async function updateBoardDescription(
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
-  const membership = await prisma.boardMember.findUnique({
-    where: { boardId_userId: { boardId, userId: session.user.id } },
-  });
+  const [membership, board] = await Promise.all([
+    prisma.boardMember.findUnique({
+      where: { boardId_userId: { boardId, userId: session.user.id } },
+    }),
+    prisma.board.findUnique({ where: { id: boardId }, select: { description: true } }),
+  ]);
   if (!membership || !hasMinRole(membership.role, "EDITOR"))
     return { success: false, error: "Only editors and owners can edit the description" };
+  if (!board) return { success: false, error: "Board not found" };
+
+  const newDesc  = description?.trim() || null;
+  const changed  = (newDesc ?? "") !== (board.description ?? "");
 
   try {
-    await prisma.board.update({
-      where: { id: boardId },
-      data: { description: description?.trim() || null },
+    await prisma.$transaction(async (tx) => {
+      await tx.board.update({ where: { id: boardId }, data: { description: newDesc } });
+      if (changed) {
+        await tx.activity.create({
+          data: {
+            action: "BOARD_UPDATE",
+            boardId,
+            userId: session.user.id,
+            metadata: JSON.stringify({ type: "description" }),
+          },
+        });
+      }
     });
     revalidatePath(`/boards/${boardId}`);
     revalidatePath("/boards");

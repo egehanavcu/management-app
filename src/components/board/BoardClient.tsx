@@ -72,6 +72,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   const [showActivity,       setShowActivity]      = useState(false);
   const [syncing,            setSyncing]           = useState(false);
   const [showDeleteConfirm,  setShowDeleteConfirm] = useState(false);
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
   const preDragSnapshot   = useRef<DndColumn[]>(initialColumns);
   // Always-current ref so drag handlers read fresh state even if React hasn't
   // re-rendered since the last setColumns call (stale-closure guard).
@@ -240,6 +241,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
       toast.error(result.error ?? "Failed to update description");
       return false;
     }
+    setActivityRefreshKey((k) => k + 1);
     return true;
   }, [boardId]);
 
@@ -488,7 +490,13 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
         {/* Left: title + description */}
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           <div className="flex items-center gap-2 min-w-0">
-            <EditableBoardTitle boardId={boardId} initialTitle={boardTitle} canEdit={canEdit} syncing={syncing} />
+            <EditableBoardTitle
+              boardId={boardId}
+              initialTitle={boardTitle}
+              canEdit={canEdit}
+              syncing={syncing}
+              onSaved={() => setActivityRefreshKey((k) => k + 1)}
+            />
           </div>
           {/* Description hidden on small screens to save header height */}
           <div className="hidden sm:block">
@@ -604,6 +612,7 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
           boardId={boardId}
           open={showActivity}
           onClose={() => setShowActivity(false)}
+          refreshKey={activityRefreshKey}
         />
       </div>
 

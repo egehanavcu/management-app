@@ -28,6 +28,7 @@ enum ActionType {
   COLUMN_UPDATE
   COLUMN_CREATE
   COLUMN_DELETE
+  BOARD_UPDATE
 }
 
 // ─── Auth (NextAuth v5 / @auth/prisma-adapter) ───────────────────────────────
