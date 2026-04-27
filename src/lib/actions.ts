@@ -107,9 +107,37 @@ export async function deleteBoardAction(boardId: string): Promise<ActionState> {
   });
   if (!membership || !hasMinRole(membership.role, "OWNER")) return { error: "Only owners can delete boards" };
   try {
-    await prisma.board.delete({ where: { id: boardId } });
+    await prisma.$transaction(async (tx) => {
+      // Collect every column and card ID under this board so we can wipe
+      // their activity rows before the cascade runs.  This avoids SET NULL
+      // failures on Activity.cardId / fromColumnId / toColumnId which occur
+      // when those columns still carry a NOT NULL constraint in the DB.
+      const columns = await tx.column.findMany({
+        where: { boardId },
+        select: { id: true, cards: { select: { id: true } } },
+      });
+      const colIds  = columns.map((c) => c.id);
+      const cardIds = columns.flatMap((c) => c.cards.map((card) => card.id));
+
+      await tx.activity.deleteMany({
+        where: {
+          OR: [
+            { boardId },
+            ...(cardIds.length   ? [{ cardId:       { in: cardIds } }] : []),
+            ...(colIds.length    ? [{ fromColumnId: { in: colIds  } }] : []),
+            ...(colIds.length    ? [{ toColumnId:   { in: colIds  } }] : []),
+          ],
+        },
+      });
+
+      await tx.board.delete({ where: { id: boardId } });
+    });
+
     revalidatePath("/boards");
-  } catch { return { error: "Failed to delete board" }; }
+  } catch (err) {
+    console.error("[deleteBoardAction] board:", boardId, err);
+    return { error: "Failed to delete board. Please try again." };
+  }
   redirect("/boards");
 }
 
