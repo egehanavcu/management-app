@@ -532,9 +532,14 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
         <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
           {/* Member avatars — hidden on mobile to save space */}
           <div className="hidden md:flex items-center gap-x-1">
-            {members.slice(0, 6).map((m) => (
+            {members.slice(0, 5).map((m) => (
               <MemberAvatar key={m.id} name={m.user.name} email={m.user.email} />
             ))}
+            {members.length > 5 && (
+              <div className="w-7 h-7 rounded-full bg-white/30 text-white flex items-center justify-center text-[11px] font-semibold">
+                +{members.length - 5}
+              </div>
+            )}
           </div>
 
           {/* Members button */}
