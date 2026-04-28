@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { getInitials } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -208,7 +209,7 @@ function PanelContent({
                         ? "bg-indigo-100 text-indigo-700"
                         : "bg-primary/15 text-primary",
                     ].join(" ")}>
-                      {actor.slice(0, 2).toUpperCase()}
+                      {getInitials(actor)}
                     </div>
                     <div className="text-sm leading-snug min-w-0">
                       <span className="font-medium text-slate-800">{actor}</span>{" "}

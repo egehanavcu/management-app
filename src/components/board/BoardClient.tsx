@@ -29,6 +29,7 @@ import {
   AlertDialogMedia,
 } from "@/components/ui/alert-dialog";
 import { calculateNewPosition }       from "@/lib/position";
+import { getInitials }               from "@/lib/utils";
 import { renameColumn, deleteColumn, deleteBoardAction, updateBoardDescription, toggleCardLabel, createLabel, toggleCardAssignee, deleteCard } from "@/lib/actions";
 import { useMobileSidebar }           from "./MobileSidebarProvider";
 import type { DndCard, DndColumn, DndBoardMember, BoardLabel, CardDragData, ColumnDragData, ColumnDropData } from "@/types/dnd";
@@ -46,7 +47,7 @@ interface BoardClientProps {
 
 function MemberAvatar({ name, email }: { name: string | null; email: string | null }) {
   const label   = name ?? email ?? "?";
-  const initials = label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  const initials = getInitials(label);
   return (
     <div
       title={label}

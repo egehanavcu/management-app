@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCard } from "@/lib/actions";
 import { LABEL_COLORS, getLabelColor } from "@/lib/label-colors";
+import { getInitials } from "@/lib/utils";
 import type { DndCard, DndBoardMember, BoardLabel } from "@/types/dnd";
 
 function fmt(d: Date | string | null) {
@@ -346,7 +347,7 @@ export function CardModal({
                     {members.map((m) => {
                       const active = activeAssignees.has(m.userId);
                       const label  = m.user.name ?? m.user.email ?? "?";
-                      const ini    = label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                      const ini    = getInitials(label);
                       return (
                         <button
                           key={m.userId}
@@ -372,7 +373,7 @@ export function CardModal({
                   <div className="flex flex-wrap gap-1.5">
                     {card.assignees.map((a) => {
                       const label = a.name ?? a.email ?? "?";
-                      const ini   = label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                      const ini   = getInitials(label);
                       return (
                         <span key={a.id} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                           <div className="w-4 h-4 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
@@ -586,7 +587,7 @@ export function CardModal({
                     return (
                       <li key={a.id} className="flex items-start gap-3">
                         <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 mt-0.5">
-                          {actor.slice(0, 2).toUpperCase()}
+                          {getInitials(actor)}
                         </div>
                         <div className="flex-1 min-w-0 text-sm leading-snug">
                           <span className="font-medium text-slate-800">{actor}</span>

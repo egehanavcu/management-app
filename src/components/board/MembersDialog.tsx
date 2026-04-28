@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getInitials } from "@/lib/utils";
 import type { DndBoardMember } from "@/types/dnd";
 
 type Role = "OWNER" | "EDITOR" | "VIEWER";
@@ -137,7 +138,7 @@ export function MembersDialog({
                 className={`flex items-center gap-2.5 transition-opacity duration-200 ${isRemoving ? "opacity-50" : ""}`}
               >
                 <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
-                  {(m.user.name ?? m.user.email ?? "?").slice(0, 2).toUpperCase()}
+                  {getInitials(m.user.name ?? m.user.email)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-900 truncate">{m.user.name ?? "—"}</p>

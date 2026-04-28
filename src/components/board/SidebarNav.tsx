@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { CreateBoardModal } from "./CreateBoardModal";
 import { useMobileSidebar } from "./MobileSidebarProvider";
 import { signOutAction } from "@/lib/actions";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import type { Role } from "@/generated/prisma";
 
 interface Board {
@@ -31,8 +31,7 @@ export function SidebarNav({ boards, user }: { boards: Board[]; user: SidebarUse
   const [createOpen, setCreateOpen]   = useState(false);
   const { open: sheetOpen, setOpen }  = useMobileSidebar();
 
-  const initials = (user.name ?? user.email ?? "U")
-    .split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  const initials = getInitials(user.name ?? user.email);
 
   // Shared nav tree — used by both the desktop aside and the mobile Sheet.
   // `onLinkClick` closes the Sheet on mobile; undefined on desktop (no-op).

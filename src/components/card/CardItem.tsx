@@ -1,15 +1,11 @@
 import { AlignLeft, Calendar } from "lucide-react";
 import { getLabelColor } from "@/lib/label-colors";
+import { getInitials } from "@/lib/utils";
 import type { DndCard } from "@/types/dnd";
 
 interface CardItemProps {
   card: DndCard;
   onClick?: () => void;
-}
-
-function initials(name: string | null, email: string | null) {
-  const label = name ?? email ?? "?";
-  return label.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
 export function CardItem({ card, onClick }: CardItemProps) {
@@ -76,7 +72,7 @@ export function CardItem({ card, onClick }: CardItemProps) {
                   title={a.name ?? a.email ?? "Assignee"}
                   className="w-5 h-5 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[9px] font-semibold"
                 >
-                  {initials(a.name, a.email)}
+                  {getInitials(a.name ?? a.email)}
                 </div>
               ))}
               {overflow > 0 && (
