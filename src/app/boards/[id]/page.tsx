@@ -20,14 +20,30 @@ export default async function BoardPage({
   // startTransition in CreateBoardModal suppresses loading.tsx; together they
   // make the page swap feel instant.
   if (sp.new === "1") {
+    // auth() decodes a JWT from the cookie — pure crypto, zero DB round-trip.
+    const session = await auth();
+    if (!session?.user?.id) redirect("/login");
+
     const title = typeof sp.title === "string" ? decodeURIComponent(sp.title) : "";
     const desc  = typeof sp.desc  === "string" ? decodeURIComponent(sp.desc)  : null;
+
+    // Seed the members list with the creator so the header avatar and member
+    // count are correct from the very first render. The membership row is
+    // already in the DB (created by the server action); we just skip re-reading
+    // it because we already know the user is the OWNER.
+    const selfMember: DndBoardMember = {
+      id:     `${session.user.id}-membership`,
+      userId: session.user.id,
+      role:   "OWNER",
+      user:   { name: session.user.name ?? null, email: session.user.email ?? "" },
+    };
+
     return (
       <BoardClient
         boardId={id}
         boardTitle={title}
         boardDescription={desc || null}
-        members={[]}
+        members={[selfMember]}
         labels={[]}
         initialColumns={[]}
         userRole="OWNER"
