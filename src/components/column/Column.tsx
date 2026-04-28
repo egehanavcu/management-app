@@ -102,6 +102,7 @@ export function Column({
         {/* ── Column header ─────────────────────────────────────────────────── */}
         <div
           {...dragHandleListeners}
+          onKeyDown={isEditingTitle ? undefined : dragHandleListeners?.onKeyDown as React.KeyboardEventHandler | undefined}
           className="flex items-center gap-1.5 px-2 py-2 flex-shrink-0 cursor-grab active:cursor-grabbing rounded-t-xl"
         >
           {/* Grip */}

@@ -75,6 +75,9 @@ export function EditableColumnTitle({
         onPointerDown={(e) => e.stopPropagation()}
         onBlur={commit}
         onKeyDown={(e) => {
+          // Block every key from reaching the dnd-kit drag-handle listener on the
+          // parent div. Without this, Space triggers the keyboard "lift" action.
+          e.stopPropagation();
           if (e.key === "Enter")  { e.preventDefault(); commit(); }
           if (e.key === "Escape") { e.preventDefault(); cancel(); }
         }}
