@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hasMinRole } from "@/types";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { DEFAULT_LABELS } from "@/lib/constants";
 import type { DndCard, DndColumn, BoardLabel } from "@/types/dnd";
 
 export type ActionState      = { error?: string; success?: boolean; boardId?: string };
@@ -53,15 +54,6 @@ export async function updateBoardTitle(
     return { success: false, error: "Failed to rename board. Please try again." };
   }
 }
-
-const DEFAULT_LABELS = [
-  { name: "Bug",           color: "red"    },
-  { name: "Feature",       color: "blue"   },
-  { name: "Improvement",   color: "green"  },
-  { name: "Documentation", color: "purple" },
-  { name: "Priority",      color: "orange" },
-  { name: "Question",      color: "yellow" },
-];
 
 export async function createBoard(
   _prev: ActionState,

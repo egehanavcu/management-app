@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import { BoardClient } from "@/components/board/BoardClient";
+import { DEFAULT_LABELS } from "@/lib/constants";
 import type { DndColumn, DndBoardMember, BoardLabel } from "@/types/dnd";
 
 export default async function BoardPage({
@@ -38,13 +39,22 @@ export default async function BoardPage({
       user:   { name: session.user.name ?? null, email: session.user.email ?? "" },
     };
 
+    // Seed the label picker with placeholder entries that match exactly what the
+    // DB created for this board. BoardClient will hydrate these with real IDs
+    // after a fast background fetch — temp IDs are never sent to the server.
+    const placeholderLabels: BoardLabel[] = DEFAULT_LABELS.map((l, i) => ({
+      id: `temp-${i}`,
+      name: l.name,
+      color: l.color,
+    }));
+
     return (
       <BoardClient
         boardId={id}
         boardTitle={title}
         boardDescription={desc || null}
         members={[selfMember]}
-        labels={[]}
+        labels={placeholderLabels}
         initialColumns={[]}
         userRole="OWNER"
         isNewBoard

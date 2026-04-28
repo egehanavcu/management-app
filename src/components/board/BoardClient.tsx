@@ -76,12 +76,44 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   const [showDeleteConfirm,  setShowDeleteConfirm] = useState(false);
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
 
-  // Strip the ?new=1&title=… params that were used to skip loading.tsx. Done
-  // via the History API so Next.js doesn't treat it as a new navigation.
+  // One-time setup for brand-new boards: clean the URL and hydrate the
+  // placeholder labels (temp-0…temp-N) with their real DB IDs so that label
+  // toggling works before the user ever does a full page refresh.
   useEffect(() => {
-    if (isNewBoard) {
-      window.history.replaceState(null, "", `/boards/${boardId}`);
-    }
+    if (!isNewBoard) return;
+
+    window.history.replaceState(null, "", `/boards/${boardId}`);
+
+    fetch(`/api/boards/${boardId}/labels`)
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((real: BoardLabel[]) => {
+        setLabels((prev) => {
+          // Index real labels by "name:color" for O(1) lookup.
+          const realByKey = new Map(real.map((l) => [`${l.name}:${l.color}`, l]));
+          const usedIds   = new Set<string>();
+          const merged: BoardLabel[] = [];
+
+          for (const pl of prev) {
+            if (!pl.id.startsWith("temp-")) {
+              // Already a real label (user created one in the brief pre-hydration window).
+              merged.push(pl);
+              usedIds.add(pl.id);
+            } else {
+              const match = realByKey.get(`${pl.name}:${pl.color}`);
+              if (match && !usedIds.has(match.id)) {
+                merged.push(match);
+                usedIds.add(match.id);
+              }
+            }
+          }
+          // Append any real labels not yet in state (created in another tab, etc.).
+          for (const rl of real) {
+            if (!usedIds.has(rl.id)) merged.push(rl);
+          }
+          return merged;
+        });
+      })
+      .catch(() => { /* Labels will have real IDs after the next full page load. */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
