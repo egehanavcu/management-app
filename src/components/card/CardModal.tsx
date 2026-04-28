@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCard } from "@/lib/actions";
 import { LABEL_COLORS, getLabelColor } from "@/lib/label-colors";
-import { getInitials } from "@/lib/utils";
+import { getInitials, formatDueDate } from "@/lib/utils";
 import type { DndCard, DndBoardMember, BoardLabel } from "@/types/dnd";
 
 function fmt(d: Date | string | null) {
@@ -561,8 +561,7 @@ export function CardModal({
                           try {
                             const { date } = JSON.parse(a.metadata);
                             if (date) {
-                              const d = new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                              desc = `set the due date to ${d}`; break;
+                              desc = `set the due date to ${formatDueDate(date)}`; break;
                             }
                             desc = "removed the due date"; break;
                           } catch { /* */ }

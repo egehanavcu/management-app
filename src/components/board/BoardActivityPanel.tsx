@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { getInitials } from "@/lib/utils";
+import { getInitials, formatDueDate } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ function describeActivity(a: Activity): string {
         try {
           const { date } = JSON.parse(a.metadata);
           if (date) {
-            const d = new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            const d = formatDueDate(date);
             return `set the due date of "${cardTitle}" to ${d}`;
           }
           return `removed the due date from "${cardTitle}"`;

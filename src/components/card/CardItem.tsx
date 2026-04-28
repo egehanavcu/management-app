@@ -1,6 +1,6 @@
 import { AlignLeft, Calendar } from "lucide-react";
 import { getLabelColor } from "@/lib/label-colors";
-import { getInitials } from "@/lib/utils";
+import { getInitials, formatDueDate } from "@/lib/utils";
 import type { DndCard } from "@/types/dnd";
 
 interface CardItemProps {
@@ -48,12 +48,12 @@ export function CardItem({ card, onClick }: CardItemProps) {
           <div className="flex items-center gap-1.5">
             {hasDueDate && (
               <span
-                className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded ${
+                className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap ${
                   isOverdue ? "bg-red-100 text-red-600" : "bg-slate-100 text-slate-500"
                 }`}
               >
-                <Calendar className="h-3 w-3" />
-                {new Date(card.dueDate!).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                <Calendar className="h-3 w-3 flex-shrink-0" />
+                {formatDueDate(card.dueDate!)}
               </span>
             )}
             {hasDesc && (
