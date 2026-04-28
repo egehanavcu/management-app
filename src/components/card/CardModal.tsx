@@ -260,11 +260,21 @@ export function CardModal({
       <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
 
         {/* ── Header ────────────────────────────────────────────────────── */}
-        <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-slate-100">
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
-              {columnTitle}
-            </p>
+        <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-slate-100 min-w-0 overflow-hidden">
+
+          {/* Left: flex-col so column breadcrumb and card title stack independently */}
+          <div className="flex-1 min-w-0 overflow-hidden flex flex-col gap-1">
+
+            {/* Column name — isolated flex row so truncate gets a clean bounded width */}
+            <div className="flex w-full min-w-0">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">
+                  {columnTitle}
+                </p>
+              </div>
+            </div>
+
+            {/* Card title */}
             {canEdit ? (
               <input
                 className="w-full text-lg font-semibold text-slate-900 bg-transparent outline-none border-b-2 border-transparent focus:border-primary transition-colors"
@@ -273,9 +283,10 @@ export function CardModal({
                 onBlur={() => void handleTitleSave()}
               />
             ) : (
-              <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
+              <h2 className="text-lg font-semibold text-slate-900 break-words">{card.title}</h2>
             )}
           </div>
+
           {/* Save / delete indicators — DialogContent renders the × close button itself */}
           <div className="flex items-center gap-2 flex-shrink-0 mr-6">
             {saving   && <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />}

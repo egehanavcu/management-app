@@ -24,7 +24,7 @@ export function CardItem({ card, onClick }: CardItemProps) {
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}
-      className="bg-white rounded-lg shadow-sm px-3 py-2.5 border border-transparent hover:border-primary/20 hover:shadow-md transition-all duration-150 select-none cursor-pointer group"
+      className="overflow-hidden bg-white rounded-lg shadow-sm px-3 py-2.5 border border-transparent hover:border-primary/20 hover:shadow-md transition-all duration-150 select-none cursor-pointer group"
     >
       {/* Label colour strips */}
       {hasLabels && (
@@ -40,7 +40,7 @@ export function CardItem({ card, onClick }: CardItemProps) {
       )}
 
       {/* Title */}
-      <p className="text-sm text-slate-800 leading-snug font-medium">{card.title}</p>
+      <p className="text-sm text-slate-800 leading-snug font-medium line-clamp-3 break-words">{card.title}</p>
 
       {/* Footer badges */}
       {(hasDueDate || hasDesc || hasAssignees) && (
