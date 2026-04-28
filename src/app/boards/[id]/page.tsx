@@ -4,11 +4,41 @@ import { notFound, redirect } from "next/navigation";
 import { BoardClient } from "@/components/board/BoardClient";
 import type { DndColumn, DndBoardMember, BoardLabel } from "@/types/dnd";
 
-export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BoardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Resolve route params first — these are fast JS thenables, no I/O.
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+
+  // ── Zero-DB fast path ──────────────────────────────────────────────────────
+  // A brand-new board is always empty. The layout already verified auth, so we
+  // can return HTML immediately — no auth(), no Prisma, nothing to await.
+  // startTransition in CreateBoardModal suppresses loading.tsx; together they
+  // make the page swap feel instant.
+  if (sp.new === "1") {
+    const title = typeof sp.title === "string" ? decodeURIComponent(sp.title) : "";
+    const desc  = typeof sp.desc  === "string" ? decodeURIComponent(sp.desc)  : null;
+    return (
+      <BoardClient
+        boardId={id}
+        boardTitle={title}
+        boardDescription={desc || null}
+        members={[]}
+        labels={[]}
+        initialColumns={[]}
+        userRole="OWNER"
+        isNewBoard
+      />
+    );
+  }
+
+  // ── Standard path for existing boards ─────────────────────────────────────
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-
-  const { id } = await params;
 
   // Run membership check and full board fetch in parallel — eliminates one
   // sequential DB round-trip and cuts response time roughly in half.
@@ -37,7 +67,6 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
     }),
   ]);
 
-  // Both checks happen after the parallel await — no extra round-trip.
   if (!membership || !board) notFound();
 
   const initialColumns: DndColumn[] = board.columns.map((col) => ({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, closestCorners, pointerWithin,
@@ -43,6 +43,7 @@ interface BoardClientProps {
   labels: BoardLabel[];
   initialColumns: DndColumn[];
   userRole: Role;
+  isNewBoard?: boolean;
 }
 
 function MemberAvatar({ name, email }: { name: string | null; email: string | null }) {
@@ -62,7 +63,7 @@ function findCardColumn(cardId: string, cols: DndColumn[]) {
   return cols.find((c) => c.cards.some((card) => card.id === cardId));
 }
 
-export function BoardClient({ boardId, boardTitle, boardDescription, members: initialMembers, labels: initialLabels, initialColumns, userRole }: BoardClientProps) {
+export function BoardClient({ boardId, boardTitle, boardDescription, members: initialMembers, labels: initialLabels, initialColumns, userRole, isNewBoard }: BoardClientProps) {
   const [columns,            setColumns]           = useState<DndColumn[]>(initialColumns);
   const [members,            setMembers]           = useState<DndBoardMember[]>(initialMembers);
   const [labels,             setLabels]            = useState<BoardLabel[]>(initialLabels);
@@ -74,6 +75,15 @@ export function BoardClient({ boardId, boardTitle, boardDescription, members: in
   const [syncing,            setSyncing]           = useState(false);
   const [showDeleteConfirm,  setShowDeleteConfirm] = useState(false);
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
+
+  // Strip the ?new=1&title=… params that were used to skip loading.tsx. Done
+  // via the History API so Next.js doesn't treat it as a new navigation.
+  useEffect(() => {
+    if (isNewBoard) {
+      window.history.replaceState(null, "", `/boards/${boardId}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounced helper — prevents a burst of rapid card moves from triggering
   // multiple panel refetches. The ref lets zero-dep callbacks (handleDragEnd)

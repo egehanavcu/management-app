@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import {
@@ -27,6 +27,8 @@ export function CreateBoardModal({
   const router  = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, isPending] = useActionState(createBoard, initial);
+  const [titleValue, setTitleValue] = useState("");
+  const [descValue,  setDescValue]  = useState("");
 
   // Track which boardId we've already navigated to so the effect is a no-op
   // if it re-fires because onClose changed reference (new arrow fn each render).
@@ -35,9 +37,17 @@ export function CreateBoardModal({
   useEffect(() => {
     if (state.success && state.boardId && state.boardId !== navigatedTo.current) {
       navigatedTo.current = state.boardId;
+      const encodedTitle = encodeURIComponent(titleValue.trim());
+      const encodedDesc  = encodeURIComponent(descValue.trim());
+      setTitleValue("");
+      setDescValue("");
       formRef.current?.reset();
       onClose();
-      router.push(`/boards/${state.boardId}`);
+      // startTransition tells Next.js to skip the loading.tsx skeleton — the
+      // current page stays visible while the new route renders in the background.
+      startTransition(() => {
+        router.push(`/boards/${state.boardId}?new=1&title=${encodedTitle}&desc=${encodedDesc}`);
+      });
     }
     // Deliberately omit onClose/router — they're stable enough and including them
     // is what caused the loop (new onClose ref on every SidebarNav re-render).
@@ -65,6 +75,8 @@ export function CreateBoardModal({
               required
               placeholder="e.g. Q2 Product Roadmap"
               autoFocus
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
             />
           </div>
 
@@ -78,6 +90,8 @@ export function CreateBoardModal({
               placeholder="What is this board for?"
               rows={3}
               className="resize-none"
+              value={descValue}
+              onChange={(e) => setDescValue(e.target.value)}
             />
           </div>
 
