@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { ServerCrash, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Inter, Geist_Mono } from "next/font/google";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 interface GlobalErrorProps {
   error: Error & { digest?: string };
@@ -19,8 +22,8 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <html lang="en">
-      <body className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-6">
+    <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
+      <body className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-6 antialiased">
         <div className="text-center max-w-md w-full">
 
           {/* Icon */}
