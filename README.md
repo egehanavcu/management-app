@@ -18,7 +18,7 @@ High-performance, mobile-first Kanban project management tool designed for moder
 
 | Layer | Technology |
 | :--- | :--- |
-| **Framework** | Next.js 14 (App Router) |
+| **Framework** | Next.js 16 |
 | **Database / ORM** | PostgreSQL + Prisma |
 | **DND** | dnd-kit |
 | **Styling** | Tailwind CSS + Shadcn/UI |
