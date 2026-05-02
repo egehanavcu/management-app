@@ -1,6 +1,6 @@
 # Advanced Kanban Board
 
-High-performance, mobile-first Kanban project management tool designed for modern teams.
+High-performance, mobile-first Kanban project management tool designed for modern teams. [Click for the presentation.](./presentation.pptx)
 
 ---
 
